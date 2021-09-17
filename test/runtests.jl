@@ -1,6 +1,2 @@
-using MultiResponseVarianceComponentModels
-using Test
-
-@testset "MultiResponseVarianceComponentModels.jl" begin
-    # Write your tests here.
-end
+# include("mvcalculus_test.jl")
+include("fit_test.jl")
