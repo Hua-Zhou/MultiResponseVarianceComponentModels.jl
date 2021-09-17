@@ -4,7 +4,7 @@
 Overwrite `Y` with `A ⊗ X + Y`. Same as `Y += kron(A, X)` but
 more memory efficient.
 """
-function kron_axpy!(
+@inline function kron_axpy!(
     A :: AbstractVecOrMat{T},
     X :: AbstractVecOrMat{T},
     Y :: AbstractVecOrMat{T}
@@ -13,19 +13,11 @@ function kron_axpy!(
     p, q = size(X)
     @assert size(Y, 1) == m * p
     @assert size(Y, 2) == n * q
-    @inbounds for j in 1:n
-        coffset = (j - 1) * q
-        for i in 1:m
-            a = A[i, j]
-            roffset = (i - 1) * p            
-            for l in 1:q
-                r = roffset + 1
-                c = coffset + l
-                for k in 1:p                
-                    Y[r, c] += a * X[k, l]
-                    r += 1
-                end
-            end
+    yidx = 0
+    @inbounds for j in 1:n, l in 1:q, i in 1:m
+        aij = A[i, j]
+        for k in 1:p
+            Y[yidx += 1] += aij * X[k, l]
         end
     end
     Y
@@ -38,7 +30,7 @@ Overwrites `C` with the derivative of `tr(A' (X ⊗ B))` wrt `X`.
 `C[i, j] = dot(Aij, B)`, where `Aij` is the `(i , j)` block of `A`. `sym=true` 
 indicates `A` and `B` are symmetric.
 """
-function kron_reduction!(
+@inline function kron_reduction!(
     A   :: AbstractMatrix{T}, 
     B   :: AbstractMatrix{T},
     C   :: AbstractMatrix{T},
@@ -48,17 +40,25 @@ function kron_reduction!(
     m, n = size(B)
     p, q = size(C)
     @assert size(A, 1) == m * p && size(A, 2) == n * q
+    fill!(C, 0)
     # loop over (i, j) blocks of A, each of size B
-    for j in 1:q
+    # aidx = 0
+    # @inbounds for j in 1:q, l in 1:n, i in 1:p, k in 1:m
+    #     C[i, j] += A[aidx += 1] * B[k, l]
+    # end
+    @inbounds for j in 1:q
         cidx = ((j - 1) * n + 1):(j * n)
         for i in 1:p
-            if i ≥ j || ~sym
-                ridx    = ((i - 1) * m + 1):(i * m)            
-                Aij     = view(A, ridx, cidx)
-                C[i, j] = dot(B, Aij)
+            if i ≤ j || ~sym
+                C[i, j] = 0
+                ridx    = ((i - 1) * m + 1):(i * m)
+                bidx    = 0
+                for c in cidx, r in ridx
+                    C[i, j] += A[r, c] * B[bidx += 1]
+                end
             end
         end
     end
-    sym && copytri!(C, 'L')
+    sym && copytri!(C, 'U')
     C
 end

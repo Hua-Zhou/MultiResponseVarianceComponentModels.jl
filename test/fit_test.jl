@@ -1,14 +1,14 @@
 module FitTest
 
 using MultiResponseVarianceComponentModels
-using BenchmarkTools, LinearAlgebra, Random, StatsBase, Test
+using BenchmarkTools, LinearAlgebra, Profile, Random, StatsBase, Test
 import LinearAlgebra: copytri!
 
 const MRVC = MultiResponseVarianceComponentModels
 
 rng = MersenneTwister(123)
 
-n, p, d, m = 900, 3, 4, 3
+n, p, d, m = 855, 3, 4, 3
 # design matrix, including intercept
 X = [ones(n) randn(rng, n, p - 1)]
 # V[1] is an AR1(ρ) matrix, with entries ρ^|i-j|
@@ -50,7 +50,7 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 end
 
 @testset "fit!" begin
-    MRVC.fit!(mrvc, verbose = true)
+    @time MRVC.fit!(mrvc, verbose = true)
     println("Btrue:")
     display(Β_true)
     println()
@@ -66,5 +66,11 @@ end
         println()
     end
 end
+
+# @testset "profile fit!" begin
+#     Profile.clear()
+#     @profile MRVC.fit!(mrvc, maxiter=20)
+#     Profile.print(format=:flat)
+# end
 
 end
