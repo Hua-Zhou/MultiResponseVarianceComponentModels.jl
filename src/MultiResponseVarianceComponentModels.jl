@@ -1,6 +1,6 @@
 module MultiResponseVarianceComponentModels
 
-using LinearAlgebra
+using LinearAlgebra, Manopt, Manifolds
 import LinearAlgebra: BlasReal, copytri!
 export fit!,
     kron_axpy!, 
@@ -18,7 +18,8 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     # parameters
     Β             :: Matrix{T} # \Beta
     Σ             :: Vector{Matrix{T}}
-    Ω             :: Matrix{T} # covariance matrix Ω = Σ[1] ⊗ V[1] + ... + Σ[m] ⊗ V[m]
+    Ω             :: Matrix{T} # covariance Ω = Σ[1] ⊗ V[1] + ... + Σ[m] ⊗ V[m]
+    Σ_rank        :: Vector{<:Integer}
     # working arrays
     R             :: Matrix{T} # residuals
     Ω⁻¹R          :: Matrix{T}
@@ -33,6 +34,10 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     storage_d_d_1 :: Matrix{T}
     storage_d_d_2 :: Matrix{T}
     storage_d_d_3 :: Matrix{T}
+    storage_d_d_4 :: Matrix{T}
+    storage_d_d_5 :: Matrix{T}
+    storage_d_d_6 :: Matrix{T}
+    storage_d_d_7 :: Matrix{T}
     storage_p_p   :: Matrix{T}
     storage_nd_nd :: Matrix{T}
     storage_pd_pd :: Matrix{T}
@@ -42,7 +47,8 @@ end
 function MultiResponseVarianceComponentModel(
     Y :: AbstractMatrix{T},
     X :: Union{Nothing, Matrix{T}},
-    V :: Vector{<:AbstractMatrix{T}}
+    V :: Vector{<:AbstractMatrix{T}};
+    Σ_rank :: Vector{<:Integer} = repeat([size(Y, 2)], inner = length(V))
     ) where T <: BlasReal
     # dimensions
     n, d, m = size(Y, 1), size(Y, 2), length(V)
@@ -72,15 +78,21 @@ function MultiResponseVarianceComponentModel(
     storage_d_d_1 = Matrix{T}(undef, d, d)
     storage_d_d_2 = Matrix{T}(undef, d, d)
     storage_d_d_3 = Matrix{T}(undef, d, d)
+    storage_d_d_4 = Matrix{T}(undef, d, d)
+    storage_d_d_5 = Matrix{T}(undef, d, d)
+    storage_d_d_6 = Matrix{T}(undef, d, d)
+    storage_d_d_7 = Matrix{T}(undef, d, d)
     storage_p_p   = Matrix{T}(undef, p, p)
     storage_nd_nd = Matrix{T}(undef, nd, nd)
     storage_pd_pd = Matrix{T}(undef, pd, pd)
     MultiResponseVarianceComponentModel{T}(
         Y, Xmat, V,
-        Β, Σ, Ω, R, Ω⁻¹R, xtx, xty,
+        Β, Σ, Ω, Σ_rank,
+        R, Ω⁻¹R, xtx, xty,
         storage_nd_1, storage_nd_2, storage_pd,
         storage_n_d, storage_n_p, storage_p_d,
-        storage_d_d_1, storage_d_d_2, storage_d_d_3,
+        storage_d_d_1, storage_d_d_2, storage_d_d_3, 
+        storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
         storage_p_p, storage_nd_nd, storage_pd_pd)
 end
 
@@ -94,5 +106,6 @@ MultiResponseVarianceComponentModel(Y::AbstractMatrix, V::Vector{<:AbstractMatri
 
 include("multivariate_calculus.jl")
 include("fit.jl")
+include("manopt.jl")
 
 end

@@ -80,41 +80,62 @@ covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 function update_Σ!(
     model :: MultiResponseVarianceComponentModel{T}
     ) where T <: BlasReal
+    d = size(model.Y, 2)
     Ω⁻¹ = model.storage_nd_nd
     # update Ω⁻¹R, assuming Ω⁻¹ = model.storage_nd_nd
     copyto!(model.storage_nd_1, model.R)
     mul!(model.storage_nd_2, Ω⁻¹, model.storage_nd_1)
     copyto!(model.Ω⁻¹R, model.storage_nd_2)
     for k in 1:length(model.V)
-        # storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k]))
-        kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
-        # lower cholesky factor L of gradient
-        _, info = LAPACK.potrf!('L', model.storage_d_d_1)
-        info > 0 && throw("Gradient of Σ[$k] is singular")
-        # storage_d_d_2 = L' * Σ[k] * (R' * V[k] * R) * Σ[k] * L
-        mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
-        mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
-        BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
-        mul!(model.storage_d_d_3, model.storage_d_d_2, model.Σ[k])
-        mul!(model.storage_d_d_2, transpose(model.Σ[k]), model.storage_d_d_3)
-        # Σ[k] = sqrtm(storage_d_d_2) for now
-        vals, vecs = eigen!(Symmetric(model.storage_d_d_2))
-        for j in 1:length(vals)
-            if vals[j] > 0
-                vecs[:, j] .*= sqrt(sqrt(vals[j]))
-            else
-                vecs[:, j] .= 0
-            end
+        if model.Σ_rank[k] ≥ d
+            update_Σk!(model, k)
+        else
+            update_Σk!(model, k, model.Σ_rank[k])
         end
-        mul!(model.Σ[k], vecs, transpose(vecs))
-        # inverse of Choelsky factor of gradient
-        LAPACK.trtri!('L', 'N', model.storage_d_d_1)
-        # update variance component Σ[k]
-        BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
-        BLAS.trmm!('L', 'L', 'T', 'N', one(T), model.storage_d_d_1, model.Σ[k])
     end
     update_Ω!(model)
     model.Σ
+end
+
+"""
+    update_Σk!(model, k)
+
+Update the `model.Σ[k]` assuming it has full rank `d`, assuming inverse of 
+covariance matrix `model.Ω` is available at `model.storage_nd_nd` and 
+`model.Ω⁻¹R` precomputed.
+"""
+function update_Σk!(
+    model :: MultiResponseVarianceComponentModel{T},
+    k     :: Integer
+    ) where T <: BlasReal
+    Ω⁻¹ = model.storage_nd_nd
+    # storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k]))
+    kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
+    # lower cholesky factor L of gradient
+    _, info = LAPACK.potrf!('L', model.storage_d_d_1)
+    info > 0 && throw("Gradient of Σ[$k] is singular")
+    # storage_d_d_2 = L' * Σ[k] * (R' * V[k] * R) * Σ[k] * L
+    mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
+    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
+    BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
+    mul!(model.storage_d_d_3, model.storage_d_d_2, model.Σ[k])
+    mul!(model.storage_d_d_2, transpose(model.Σ[k]), model.storage_d_d_3)
+    # Σ[k] = sqrtm(storage_d_d_2) for now
+    vals, vecs = eigen!(Symmetric(model.storage_d_d_2))
+    for j in 1:length(vals)
+        if vals[j] > 0
+            vecs[:, j] .*= sqrt(sqrt(vals[j]))
+        else
+            vecs[:, j] .= 0
+        end
+    end
+    mul!(model.Σ[k], vecs, transpose(vecs))
+    # inverse of Choelsky factor of gradient
+    LAPACK.trtri!('L', 'N', model.storage_d_d_1)
+    # update variance component Σ[k]
+    BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
+    BLAS.trmm!('L', 'L', 'T', 'N', one(T), model.storage_d_d_1, model.Σ[k])
+    model.Σ[k]
 end
 
 """

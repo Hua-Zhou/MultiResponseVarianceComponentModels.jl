@@ -49,9 +49,39 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
     @test allocs(bm) == 0
 end
 
-@testset "fit!" begin
+@testset "update_Σk!" begin
+    # initialize and pre-compute quantities
+    copyto!(mrvc.Β, Β_true)
+    update_res!(mrvc)
+    for k in 1:m
+        copyto!(mrvc.Σ[k], Σ_true[k])
+    end
+    update_Ω!(mrvc)
+    loglikelihood!(mrvc)
+    # update Ω⁻¹R, assuming Ω⁻¹ = model.storage_nd_nd
+    Ω⁻¹ = mrvc.storage_nd_nd
+    copyto!(mrvc.storage_nd_1, mrvc.R)
+    mul!(mrvc.storage_nd_2, Ω⁻¹, mrvc.storage_nd_1)
+    copyto!(mrvc.Ω⁻¹R, mrvc.storage_nd_2)
+    # update the first variance component by manopt
+    Σk_manopt = copy(MRVC.update_Σk!(mrvc, 1, d))
+    display(Σk_manopt); println()
+    # update the first variance component by solving Ricardi equation 
+    copyto!(mrvc.Σ[1], Σ_true[1])
+    Σk_ricardi = copy(MRVC.update_Σk!(mrvc, 1))
+    display(Σk_ricardi); println()
+    # in the full rank case, Ricardi equation and Manopt should give same answer
+    @test norm(Σk_manopt - Σk_ricardi) < 1e-4
+    # benchmark
+    # bm = @benchmark MRVC.update_Σk!($mrvc, 1) setup=(copyto!(mrvc.Σ[1], Σ_true[1]))
+    # display(bm); println()
+    # bm = @benchmark MRVC.update_Σk!($mrvc, 1, $d)
+    # display(bm); println()
+end
+
+@testset "fit! (full rank)" begin
     @time MRVC.fit!(mrvc, verbose = true)
-    println("Btrue:")
+    println("B_true:")
     display(Β_true)
     println()
     println("B̂:")
@@ -66,6 +96,26 @@ end
         println()
     end
 end
+
+# @testset "fit! (low rank)" begin
+#     # rank 1 for Σ[1], ..., Σ[m-1], rank d for Σ[m]
+#     mrvc.Σ_rank .= [ones(Int, m - 1); d]
+#     @time MRVC.fit!(mrvc, verbose = true)
+#     println("B_true:")
+#     display(Β_true)
+#     println()
+#     println("B̂:")
+#     display(mrvc.Β)
+#     println()
+#     for k in 1:m
+#         println("Σ_true[$k]:")
+#         display(Σ_true[k])
+#         println()
+#         println("Σ̂[$k]:")
+#         display(mrvc.Σ[k])
+#         println()
+#     end
+# end
 
 # @testset "profile fit!" begin
 #     Profile.clear()
