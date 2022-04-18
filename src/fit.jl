@@ -35,9 +35,9 @@ function fit!(
     # record iterate history if requested
     history          = ConvergenceHistory(partial = !log)
     history[:reltol] = reltol
-    IterativeSolvers.reserve!(Int, history, :iter, maxiter)
-    IterativeSolvers.reserve!(T, history, :logl, maxiter)
-    IterativeSolvers.reserve!(Float64, history, :itertime, maxiter)    
+    IterativeSolvers.reserve!(Int    , history, :iter    , maxiter + 1)
+    IterativeSolvers.reserve!(T      , history, :logl    , maxiter + 1)
+    IterativeSolvers.reserve!(Float64, history, :itertime, maxiter + 1)
     # initialization
     tic = time()
     if init == :default
