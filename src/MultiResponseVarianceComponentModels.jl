@@ -1,6 +1,6 @@
 module MultiResponseVarianceComponentModels
 
-using LinearAlgebra, Manopt, Manifolds
+using IterativeSolvers, LinearAlgebra, Manopt, Manifolds
 import LinearAlgebra: BlasReal, copytri!
 export fit!,
     kron_axpy!, 

@@ -4,26 +4,42 @@
 Fit a multivariate response variance component model by an MM algorithm.
 
 # Positional arguments  
-- `model`: a `MultiResponseVarianceComponentModel` instance.  
+- `model`   : a `MultiResponseVarianceComponentModel` instance.  
 
-# Optional arguments
-- `maxiter::Integer`: maximum number of iterations. Default is `1000`.
-- `reltol::Real`: relative tolerance for convergence. Default is `1e-4`.
-- `verbose::Bool`: display algorithmic information. Default is `false`.
-- `init::Symbol`: initialization strategy. `:default` initialize by least squares. 
+# Keyword arguments
+- `maxiter :: Integer`: maximum number of iterations. Default is `1000`.
+- `reltol  :: Real`: relative tolerance for convergence. Default is `1e-6`.
+- `verbose :: Bool`: display algorithmic information. Default is `false`.
+- `init    :: Symbol`: initialization strategy. `:default` initialize by least squares. 
     `:user` uses user-supplied value at `model.Β` and `model.Σ`.
+- `algo    :: Symbol`: optimization algorithm. `:MM` (default) or `EM`.
+- `log     :: Bool`: record iterate history or not. Defaut is `false`.
+
+# Output
+- `model`   : result with `model.B` and `model.Σ` overwritten by the estimate.
+- `logl`    : log-likelihood evaluated at final estimate.
+- `history` : iterate history.
 """
 function fit!(
     model   :: MultiResponseVarianceComponentModel{T};
+    init    :: Symbol  = :default, # :default or :user
+    algo    :: Symbol  = :MM, # :MM or :EM,
     maxiter :: Integer = 1000,
-    reltol  :: Real = 1e-6,
-    verbose :: Bool = false,
-    init    :: Symbol = :default, # :default or :user
-    algo    :: Symbol = :MM # :MM or :EM
+    reltol  :: Real    = 1e-6,
+    verbose :: Bool    = false,
+    log     :: Bool    = false
     ) where T <: BlasReal
     Y, X, V = model.Y, model.X, model.V
     # dimensions
     p, m = size(X, 2), length(V)
+    # record iterate history if requested
+    history          = ConvergenceHistory(partial = !log)
+    history[:reltol] = reltol
+    IterativeSolvers.reserve!(Int, history, :iter, maxiter)
+    IterativeSolvers.reserve!(T, history, :logl, maxiter)
+    IterativeSolvers.reserve!(Float64, history, :itertime, maxiter)    
+    # initialization
+    tic = time()
     if init == :default
         if p > 0
             # estimate fixed effect coefficients Β by least squares (cholesky solve)
@@ -52,24 +68,37 @@ function fit!(
         throw("unrecognize initialization method $init")
     end
     logl = loglikelihood!(model)
+    toc = time()
     verbose && println("iter=0, logl=$logl")
+    IterativeSolvers.nextiter!(history)
+    push!(history, :iter    , 0)
+    push!(history, :logl    , logl)
+    push!(history, :itertime, toc - tic)
     # MM loop
     for iter in 1:maxiter
+        IterativeSolvers.nextiter!(history)
+        tic = time()
         # initial estiamte of Σ can be lousy, so we update Σ first in the 1st round
         p > 0 && iter > 1 && update_Β!(model)
         update_Σ!(model, algo = algo)
         logl_prev = logl
         logl = loglikelihood!(model)
+        toc = time()
         verbose && println("iter=$iter, logl=$logl")
+        push!(history, :iter    , iter)
+        push!(history, :logl    , logl)
+        push!(history, :itertime, toc - tic)
         if iter == maxiter
             @warn "maximum number of iterations $maxiter is reached."
             break
         end
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)
+            IterativeSolvers.setconv(history, true)
             break
         end
     end
-    model
+    log && IterativeSolvers.shrink!(history)
+    model, logl, history
 end
 
 """

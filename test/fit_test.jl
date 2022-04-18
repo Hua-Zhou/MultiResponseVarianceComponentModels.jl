@@ -84,7 +84,7 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 # end
 
 @testset "fit! (full rank) by MM" begin
-    @time MRVC.fit!(mrvc, verbose = true, algo = :MM, maxiter = 100)
+    @time _, _, hist = MRVC.fit!(mrvc, verbose = true, algo = :MM, maxiter = 100)
     println("B_true:")
     display(Β_true)
     println()
@@ -95,10 +95,12 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
         println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.Σ[k]))")
         println()
     end
+    display(hist)
+    println()
 end
 
 @testset "fit! (full rank) by EM" begin
-    @time MRVC.fit!(mrvc, verbose = true, algo = :EM, maxiter = 100)
+    @time _, _, hist = MRVC.fit!(mrvc, verbose = true, algo = :EM, maxiter = 100)
     println("B_true:")
     display(Β_true)
     println()
@@ -109,6 +111,8 @@ end
         println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.Σ[k]))")
         println()
     end
+    display(hist)
+    println()
 end
 
 # @testset "fit! (low rank)" begin
