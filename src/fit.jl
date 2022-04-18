@@ -1,31 +1,32 @@
 """
     fit!(model)
 
-Fit a multivariate response variance component model.
+Fit a multivariate response variance component model by an MM algorithm.
 
 # Positional arguments  
 - `model`: a `MultiResponseVarianceComponentModel` instance.  
 
-# Optinoal arguments
+# Optional arguments
 - `maxiter::Integer`: maximum number of iterations. Default is `1000`.
 - `reltol::Real`: relative tolerance for convergence. Default is `1e-4`.
 - `verbose::Bool`: display algorithmic information. Default is `false`.
 - `init::Symbol`: initialization strategy. `:default` initialize by least squares. 
-    `:user` uses user supplied value at `model.Β` and `model.Σ`.
+    `:user` uses user-supplied value at `model.Β` and `model.Σ`.
 """
 function fit!(
     model   :: MultiResponseVarianceComponentModel{T};
     maxiter :: Integer = 1000,
     reltol  :: Real = 1e-6,
     verbose :: Bool = false,
-    init    :: Symbol = :default # :default or :user
+    init    :: Symbol = :default, # :default or :user
+    algo    :: Symbol = :MM # :MM or :EM
     ) where T <: BlasReal
     Y, X, V = model.Y, model.X, model.V
     # dimensions
     p, m = size(X, 2), length(V)
     if init == :default
         if p > 0
-            # estimate fixed effect coefficients Β by least squares (cholseky solve)
+            # estimate fixed effect coefficients Β by least squares (cholesky solve)
             copyto!(model.storage_p_p, model.xtx)
             _, info = LAPACK.potrf!('U', model.storage_p_p)
             info > 0 && throw("design matrix X is rank deficient")
@@ -37,7 +38,7 @@ function fit!(
             copy!(model.R, Y)
         end
         # initialization of variance components Σ[1], ..., Σ[m]
-        # If R is MatrixNormal(0,Vi,Σi), i.e., vec(R) is Normal(0, Σi⊗Vi),
+        # If R is MatrixNormal(0, Vi, Σi), i.e., vec(R) is Normal(0, Σi⊗Vi),
         # then E(R'R) = tr(Vi) * Σi. So we estimate Σi by R'R / tr(Vi)
         mul!(model.storage_d_d_1, transpose(model.R), model.R)
         for k in 1:m
@@ -56,7 +57,7 @@ function fit!(
     for iter in 1:maxiter
         # initial estiamte of Σ can be lousy, so we update Σ first in the 1st round
         p > 0 && iter > 1 && update_Β!(model)
-        update_Σ!(model)
+        update_Σ!(model, algo = algo)
         logl_prev = logl
         logl = loglikelihood!(model)
         verbose && println("iter=$iter, logl=$logl")
@@ -78,7 +79,8 @@ Update the variance component parameters `model.Σ`, assuming inverse of
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function update_Σ!(
-    model :: MultiResponseVarianceComponentModel{T}
+    model :: MultiResponseVarianceComponentModel{T};
+    algo  :: Symbol = :MM # :MM or :EM
     ) where T <: BlasReal
     d = size(model.Y, 2)
     Ω⁻¹ = model.storage_nd_nd
@@ -88,7 +90,7 @@ function update_Σ!(
     copyto!(model.Ω⁻¹R, model.storage_nd_2)
     for k in 1:length(model.V)
         if model.Σ_rank[k] ≥ d
-            update_Σk!(model, k)
+            update_Σk!(model, k, Val(algo))
         else
             update_Σk!(model, k, model.Σ_rank[k])
         end
@@ -98,18 +100,20 @@ function update_Σ!(
 end
 
 """
-    update_Σk!(model, k)
+    update_Σk!(model, k, Val(:MM))
 
-Update the `model.Σ[k]` assuming it has full rank `d`, assuming inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd` and 
+MM update of `model.Σ[k]` assuming it has full rank `d`, inverse of 
+covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
 `model.Ω⁻¹R` precomputed.
 """
 function update_Σk!(
     model :: MultiResponseVarianceComponentModel{T},
-    k     :: Integer
+    k     :: Integer,
+          :: Val{:MM}
     ) where T <: BlasReal
     Ω⁻¹ = model.storage_nd_nd
     # storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k]))
+    # = the Mnj matrix in manuscript
     kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
     # lower cholesky factor L of gradient
     _, info = LAPACK.potrf!('L', model.storage_d_d_1)
@@ -122,19 +126,57 @@ function update_Σk!(
     mul!(model.storage_d_d_2, transpose(model.Σ[k]), model.storage_d_d_3)
     # Σ[k] = sqrtm(storage_d_d_2) for now
     vals, vecs = eigen!(Symmetric(model.storage_d_d_2))
-    for j in 1:length(vals)
+    @inbounds for j in 1:length(vals)
         if vals[j] > 0
-            vecs[:, j] .*= sqrt(sqrt(vals[j]))
+            v = sqrt(sqrt(vals[j]))
+            for i in 1:size(vecs, 1)
+                vecs[i, j] *= v
+            end
         else
-            vecs[:, j] .= 0
+            for i in 1:size(vecs, 1)
+                vecs[i, j] = 0
+            end
         end
     end
     mul!(model.Σ[k], vecs, transpose(vecs))
-    # inverse of Choelsky factor of gradient
+    # inverse of Cholesky factor of gradient
     LAPACK.trtri!('L', 'N', model.storage_d_d_1)
     # update variance component Σ[k]
     BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
     BLAS.trmm!('L', 'L', 'T', 'N', one(T), model.storage_d_d_1, model.Σ[k])
+    model.Σ[k]
+end
+
+"""
+    update_Σk!(model, k, Val(:EM))
+
+EM update of `model.Σ[k]` assuming it has full rank `d`, inverse of 
+covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
+`model.Ω⁻¹R` precomputed.
+"""
+function update_Σk!(
+    model :: MultiResponseVarianceComponentModel{T},
+    k     :: Integer,
+          :: Val{:EM}
+    ) where T <: BlasReal
+    d   = size(model.Y, 2)
+    Ω⁻¹ = model.storage_nd_nd
+    # storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k]))
+    # = the Mnj matrix in manuscript
+    kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
+    # storage_d_d_2 = R' * V[k] * R
+    mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
+    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
+    # storage_d_d_2 = (R' * V[k] * R - Mk) / rk
+    model.storage_d_d_2 .= 
+        (model.storage_d_d_2 .- model.storage_d_d_1) ./ model.V_rank[k]
+    mul!(model.storage_d_d_1, model.storage_d_d_2, model.Σ[k])
+    @inbounds for j in 1:d
+        model.storage_d_d_1[j, j] += 1
+    end
+    mul!(model.Σ[k], copyto!(model.storage_d_d_2, model.Σ[k]), model.storage_d_d_1)
+    # enforce symmetry
+    copytri!(model.Σ[k], 'U')
     model.Σ[k]
 end
 

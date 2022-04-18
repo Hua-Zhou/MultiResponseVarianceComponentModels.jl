@@ -16,7 +16,7 @@ function update_Σk!(
     rk    :: Integer
     ) where T <: BlasReal
     d = size(model.Y, 2)
-    if rk > d; return update_Σk!(model, k); end
+    (rk > d) && (return update_Σk!(model, k, Val(:MM)))
     Ω⁻¹ = model.storage_nd_nd
     # M = storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k]))
     kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)

@@ -19,8 +19,9 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     Β             :: Matrix{T} # \Beta
     Σ             :: Vector{Matrix{T}}
     Ω             :: Matrix{T} # covariance Ω = Σ[1] ⊗ V[1] + ... + Σ[m] ⊗ V[m]
-    Σ_rank        :: Vector{<:Integer}
+    Σ_rank        :: Vector{Int}
     # working arrays
+    V_rank        :: Vector{Int}
     R             :: Matrix{T} # residuals
     Ω⁻¹R          :: Matrix{T}
     xtx           :: Matrix{T} # Gram matrix X'X
@@ -48,7 +49,7 @@ function MultiResponseVarianceComponentModel(
     Y :: AbstractMatrix{T},
     X :: Union{Nothing, Matrix{T}},
     V :: Vector{<:AbstractMatrix{T}};
-    Σ_rank :: Vector{<:Integer} = repeat([size(Y, 2)], inner = length(V))
+    Σ_rank :: Vector{<:Integer} = fill(size(Y, 2), length(V))
     ) where T <: BlasReal
     # dimensions
     n, d, m = size(Y, 1), size(Y, 2), length(V)
@@ -64,6 +65,7 @@ function MultiResponseVarianceComponentModel(
     Β             = Matrix{T}(undef, p, d)
     Σ             = [Matrix{T}(undef, d, d) for _ in 1:m]
     Ω             = Matrix{T}(undef, nd, nd)
+    V_rank        = [rank(V[k]) for k in 1:m]
     # working arrays
     R             = Matrix{T}(undef, n, d)
     Ω⁻¹R          = Matrix{T}(undef, n, d)
@@ -87,7 +89,7 @@ function MultiResponseVarianceComponentModel(
     storage_pd_pd = Matrix{T}(undef, pd, pd)
     MultiResponseVarianceComponentModel{T}(
         Y, Xmat, V,
-        Β, Σ, Ω, Σ_rank,
+        Β, Σ, Ω, Σ_rank, V_rank,
         R, Ω⁻¹R, xtx, xty,
         storage_nd_1, storage_nd_2, storage_pd,
         storage_n_d, storage_n_p, storage_p_d,

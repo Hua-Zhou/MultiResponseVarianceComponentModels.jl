@@ -57,4 +57,19 @@ end
     display(bm); println()
 end
 
+@testset "kron_mul!" begin
+    n1, n2, n3, n4 = 5, 10, 15, 20
+    A = randn(n1, n2)
+    B = randn(n2, n3)
+    C = randn(n3, n4)
+    out = Matrix{Float64}(undef, n1, n4)
+    sab = Matrix{Float64}(undef, n1, n3)
+    sbc = Matrix{Float64}(undef, n2, n4)
+    kron_mul!(out, A, B, C)
+    @test norm(kron_mul!(out, A, B, C) - vec(kron(transpose(C), A) * vec(B))) < 1e-8
+    bm = @benchmark kron_mul!($out, $A, $B, $C, storage_ab = $sab, storage_bc = $sbc)
+    @test allocs(bm) ≤ 2
+    display(bm); println()
+end
+
 end
