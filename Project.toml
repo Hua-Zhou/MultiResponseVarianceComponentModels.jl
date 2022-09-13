@@ -1,9 +1,10 @@
 name = "MultiResponseVarianceComponentModels"
 uuid = "95bd6349-d788-4b5f-978d-e543c2eb4d7d"
-authors = ["Hua Zhou <huazhou@ucla.edu> and contributors"]
+authors = ["Hua Zhou <huazhou@ucla.edu> and Minsoo Kim <mmkim1210@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Manifolds = "1cead3c2-87b3-11e9-0ccd-23c62b72b94e"

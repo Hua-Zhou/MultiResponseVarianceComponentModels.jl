@@ -37,7 +37,7 @@ Y = reshape(y, n, d)
 mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 
 # @testset "log-likelihood at the truth" begin
-#     copyto!(mrvc.Β, Β_true)
+#     copyto!(mrvc.B, Β_true)
 #     update_res!(mrvc)
 #     for k in 1:m
 #         copyto!(mrvc.Σ[k], Σ_true[k])
@@ -51,7 +51,7 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 
 # @testset "update_Σk!" begin
 #     # initialize and pre-compute quantities
-#     copyto!(mrvc.Β, Β_true)
+#     copyto!(mrvc.B, Β_true)
 #     update_res!(mrvc)
 #     for k in 1:m
 #         copyto!(mrvc.Σ[k], Σ_true[k])
@@ -84,12 +84,12 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 # end
 
 @testset "fit! (full rank) by MM" begin
-    @time _, _, hist = MRVC.fit!(mrvc, verbose = true, algo = :MM, maxiter = 100)
+    @time hist = MRVC.fit!(mrvc, verbose = true, algo = :MM, maxiter = 100)
     println("B_true:")
     display(Β_true)
     println()
     println("B̂:")
-    display(mrvc.Β)
+    display(mrvc.B)
     println()
     for k in 1:m
         println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.Σ[k]))")
@@ -100,12 +100,12 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 end
 
 @testset "fit! (full rank) by EM" begin
-    @time _, _, hist = MRVC.fit!(mrvc, verbose = true, algo = :EM, maxiter = 100)
+    @time hist = MRVC.fit!(mrvc, verbose = true, algo = :EM, maxiter = 100)
     println("B_true:")
     display(Β_true)
     println()
     println("B̂:")
-    display(mrvc.Β)
+    display(mrvc.B)
     println()
     for k in 1:m
         println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.Σ[k]))")
