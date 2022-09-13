@@ -39,10 +39,10 @@ function fit!(
     if reml
         Ỹ, Ṽ, _ = project_null(model.Y, model.X, model.V)
         modelf = MultiResponseVarianceComponentModel(Ỹ, Ṽ)
-        @info("running MM algorithm for REML estimation")
+        @info("running $(algo) algorithm for REML estimation")
     else
         modelf = model
-        @info("running MM algorithm for ML estimation")
+        @info("running $(algo) algorithm for ML estimation")
     end
     # record iterate history if requested
     history          = ConvergenceHistory(partial = !log)
@@ -205,7 +205,7 @@ function update_Σk!(
 end
 
 """
-    update_Σk!(model, k, Val(:EM))
+    update_Σk!(model::MultiResponseVarianceComponentModel, k, Val(:EM))
 
 EM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 

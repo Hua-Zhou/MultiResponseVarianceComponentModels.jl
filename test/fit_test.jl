@@ -21,7 +21,7 @@ V[2] = [j ≥ i ? i * (n - j + 1) : j * (n - i + 1) for i in 1:n, j in 1:n]
 StatsBase.cov2cor!(V[2], [sqrt(V[2][i, i]) for i in 1:n])
 V[3] = Matrix(UniformScaling(1.0), n, n)
 # true parameter values
-Β_true = 2rand(p, d) # uniform on [0, 2]
+B_true = 2rand(p, d) # uniform on [0, 2]
 Σ_true = [
     Matrix(UniformScaling(0.2), d, d), 
     Matrix(UniformScaling(0.2), d, d),
@@ -31,13 +31,13 @@ V[3] = Matrix(UniformScaling(1.0), n, n)
 for k in 1:m
     Ω_true .+= kron(Σ_true[k], V[k])
 end
-y = vec(X * Β_true) + cholesky(Symmetric(Ω_true)).L * randn(rng, n * d)
+y = vec(X * B_true) + cholesky(Symmetric(Ω_true)).L * randn(rng, n * d)
 Y = reshape(y, n, d)
 
 mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 
 # @testset "log-likelihood at the truth" begin
-#     copyto!(mrvc.B, Β_true)
+#     copyto!(mrvc.B, B_true)
 #     update_res!(mrvc)
 #     for k in 1:m
 #         copyto!(mrvc.Σ[k], Σ_true[k])
@@ -51,7 +51,7 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 
 # @testset "update_Σk!" begin
 #     # initialize and pre-compute quantities
-#     copyto!(mrvc.B, Β_true)
+#     copyto!(mrvc.B, B_true)
 #     update_res!(mrvc)
 #     for k in 1:m
 #         copyto!(mrvc.Σ[k], Σ_true[k])
@@ -86,7 +86,7 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 @testset "fit! (full rank) by MM" begin
     @time hist = MRVC.fit!(mrvc, verbose = true, algo = :MM, maxiter = 100)
     println("B_true:")
-    display(Β_true)
+    display(B_true)
     println()
     println("B̂:")
     display(mrvc.B)
@@ -102,7 +102,7 @@ end
 @testset "fit! (full rank) by EM" begin
     @time hist = MRVC.fit!(mrvc, verbose = true, algo = :EM, maxiter = 100)
     println("B_true:")
-    display(Β_true)
+    display(B_true)
     println()
     println("B̂:")
     display(mrvc.B)
@@ -120,7 +120,7 @@ end
 #     mrvc.Σ_rank .= [ones(Int, m - 1); d]
 #     @time MRVC.fit!(mrvc, verbose = true)
 #     println("B_true:")
-#     display(Β_true)
+#     display(B_true)
 #     println()
 #     println("B̂:")
 #     display(mrvc.Β)
