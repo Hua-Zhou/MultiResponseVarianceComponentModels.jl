@@ -11,4 +11,5 @@ Manifolds = "1cead3c2-87b3-11e9-0ccd-23c62b72b94e"
 Manopt = "0fc0a36d-df90-57f3-8f93-d78a9fc72bb5"
 
 [compat]
+Distributions = "0.25"
 julia = "1"
