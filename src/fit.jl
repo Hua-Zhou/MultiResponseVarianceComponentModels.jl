@@ -4,7 +4,7 @@
 Fit a multivariate response variance component model by an MM or EM algorithm.
 
 # Positional arguments
-- `model` : a `MultiResponseVarianceComponentModel` instance.  
+- `model`: a `MultiResponseVarianceComponentModel` instance.  
 
 # Keyword arguments
 - `maxiter::Integer`: maximum number of iterations. Default is `1000`.

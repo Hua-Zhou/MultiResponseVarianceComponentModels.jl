@@ -3,7 +3,7 @@
 ## Installation
 ```julia
 julia> ]
-pkg> add MultiResponseVarianceComponentModels
+pkg> add https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl.git
 ```
 ## Examples
 ```julia
@@ -42,7 +42,7 @@ model = MRVC(Y, X, V)
 @time fit!(model, reml = true, verbose = true)
 
 model.Σ
-reduce(hcat,[hcat(vec(Σ[1]), vec(model.Σ[1])) for i in 1:m])
+reduce(hcat,[hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
 model.Σcov # sampling variance by inverse of Fisher information matrix
 diag(model.Σcov) # (binomial(d, 2) + d) * m variance/covariance parameters
 model.logl
