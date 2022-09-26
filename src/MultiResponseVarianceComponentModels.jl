@@ -10,9 +10,9 @@ export fit!,
     update_res!,
     update_Ω!,
     fisher_Σ!,
-    calculate_p,
-    calculate_h2,
-    calculate_rg
+    lrt,
+    h2,
+    rg
 
 struct MultiResponseVarianceComponentModel{T <: BlasReal}
     # data

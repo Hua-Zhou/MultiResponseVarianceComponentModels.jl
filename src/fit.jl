@@ -32,10 +32,7 @@ function fit!(
     Y, X, V = model.Y, model.X, model.V
     # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
-    @info "n = $(n)"
-    @info "d = $(d)"
-    @info "p = $(p)"
-    @info "m = $(m)"
+    @info "n = $n, d = $d, p = $p, m = $m"
     if reml
         Ỹ, Ṽ, _ = project_null(model.Y, model.X, model.V)
         modelf = MultiResponseVarianceComponentModel(Ỹ, Ṽ)
@@ -338,33 +335,39 @@ function fisher_Σ!(
     n, d, m = size(model.Y, 1), size(model.Y, 2), length(model.V)
     nd = n * d
     np = m * d^2
-    # E[-∂logl/∂vechΣⱼᵀ∂vechΣᵢ] = 1/2 D_d'⋅Wⱼ(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅D_d,
-    # where Wᵢ = I_d⊗[(I_d⊗Vᵢ)K_dn]^(n) 
+    # E[-∂logl/∂vechΣⱼᵀ∂vechΣᵢ] = 1/2 D_d'⋅Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅D_d,
+    # where Wᵢ = I_d⊗[(I_d⊗Vᵢ)K_dn]^(n) and Uᵢ = Wᵢ⋅D_d in manuscript
     Fisher = zeros(T, np, np)
     @inbounds for i in 1:np
-        # keep track of indices for each column of Wᵢ, Wⱼ
-        midx1 = div(i - 1, d^2) + 1 # 1 ≤ midx1 ≤ m to choose Vᵢ
-        d2idx1 = mod1(i, d^2) # 1 ≤ d2idx1 ≤ d² to choose column of Wᵢ
-        ddidx1 = div(d2idx1 - 1, d) # 0 ≤ ddidx1 ≤ d - 1 to choose columns of Ω⁻¹
-        dridx1 = mod1(d2idx1, d) # 1 ≤ dridx1 ≤ d
-        copyto!(model.storage_nd_n_1, view(Ω⁻¹, :, (ddidx1 * n + 1):(ddidx1 * n + n)))
-        BLAS.gemm!('N', 'N', one(T), model.storage_nd_n_1, model.V[midx1], zero(T), model.storage_nd_n_2)
-        lidx1 = n * (dridx1 - 1) + 1
-        lidx2 = n * dridx1
+        # keep track of indices for each column of Wᵢ
+        midx1  = div(i - 1, d^2) + 1 # 1 ≤ midx ≤ m to choose Vₖ
+        d2idx1 = mod1(i, d^2) # 1 ≤ d2idx ≤ d² to choose column of Wᵢ
+        ddidx1 = div(d2idx1 - 1, d) # 0 ≤ ddidx ≤ d - 1 to choose columns of Ω⁻¹
+        dridx1 = mod1(d2idx1, d) # 1 ≤ dridx ≤ d to chhoose columns of Ω⁻¹
+        if rem(i, d) == 1
+            BLAS.gemm!('N', 'N', one(T), view(Ω⁻¹, :, (ddidx1 * n + 1):(ddidx1 * n + n)), 
+                model.V[midx1], zero(T), model.storage_nd_n_2)
+        end
         for j in i:np
-            midx2 = div(j - 1, d^2) + 1
+            midx2  = div(j - 1, d^2) + 1
             d2idx2 = mod1(j, d^2)
             ddidx2 = div(d2idx2 - 1, d)
             dridx2 = mod1(d2idx2, d)
-            copyto!(model.storage_nd_n_1, view(Ω⁻¹, :, (dridx2 * n - n + 1):(dridx2 * n)))
-            BLAS.gemm!('N', 'N', one(T), model.storage_nd_n_1, model.V[midx2], zero(T), model.storage_nd_n_3)
-            ridx1 = n * ddidx2 + 1
-            ridx2 = n * ddidx2 + n
-            for (col, row) in enumerate(ridx1:ridx2)
-                Fisher[i, j] += dot(view(model.storage_nd_n_2, row, :), 
-                    view(model.storage_nd_n_3, lidx1:lidx2, col))
+            if (midx1 == midx2) && (ddidx1 * n == dridx2 * n - n)
+                for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
+                    Fisher[i, j] += dot(view(model.storage_nd_n_2, row, :), 
+                        view(model.storage_nd_n_2, (n * (dridx1 - 1) + 1):(n * dridx1), col))
+                end
+                Fisher[i, j] /= 2
+            else
+                BLAS.gemm!('N', 'N', one(T), view(Ω⁻¹, :, (dridx2 * n - n + 1):(dridx2 * n)), 
+                    model.V[midx2], zero(T), model.storage_nd_n_3)
+                for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
+                    Fisher[i, j] += dot(view(model.storage_nd_n_2, row, :), 
+                        view(model.storage_nd_n_3, (n * (dridx1 - 1) + 1):(n * dridx1), col))
+                end
+                Fisher[i, j] /= 2
             end
-            Fisher[i, j] /= 2
         end
     end
     copytri!(Fisher, 'U')
@@ -385,7 +388,13 @@ function fisher_Σ!(
     copyto!(model.Σcov, pinv(vechF))
 end
 
-function calculate_p(
+"""
+    lrt(model1::MultiResponseVarianceComponentModel, model0::MultiResponseVarianceComponentModel)
+
+Perform a variation of the likelihood ratio test as in Molenberghs and Verbeke 2007 with
+model1 and model0 being the full and nested models, respectively.
+"""
+function lrt(
     model1::MultiResponseVarianceComponentModel,
     model0::MultiResponseVarianceComponentModel
     )
@@ -397,7 +406,7 @@ function calculate_p(
     sum(coefs .* ps)
 end
 
-function calculate_h2(model::MultiResponseVarianceComponentModel)
+function h2(model::MultiResponseVarianceComponentModel)
     m, d = length(model.Σ), size(model.Σ[1], 1)
     h² = zeros(m, d)
     h²se = zeros(m, d)
@@ -435,7 +444,7 @@ function calculate_h2(model::MultiResponseVarianceComponentModel)
     d == 1 ? (vec(h²), vec(h²se)) : (h², h²se)
 end
 
-function calculate_rg(model::MultiResponseVarianceComponentModel)
+function rg(model::MultiResponseVarianceComponentModel)
     m, d = length(model.Σ), size(model.Σ[1], 1)
     @assert d > 1
     r₉ = [Matrix{Float64}(undef, d, d) for _ in 1:m]
