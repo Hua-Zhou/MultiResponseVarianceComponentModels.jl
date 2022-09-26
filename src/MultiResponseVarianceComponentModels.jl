@@ -146,5 +146,6 @@ end
 include("multivariate_calculus.jl")
 include("fit.jl")
 include("manopt.jl")
+include("parse.jl")
 
 end
