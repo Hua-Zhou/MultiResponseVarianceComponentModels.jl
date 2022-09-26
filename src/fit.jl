@@ -15,6 +15,7 @@ Fit a multivariate response variance component model by an MM or EM algorithm.
 - `algo::Symbol`: optimization algorithm. `:MM` (default) or `EM`.
 - `log::Bool`: record iterate history or not. Defaut is `false`.
 - `reml::Bool`: REML instead of ML estimation. Default is `false`.
+- `se::Bool`: calculate standard errors. Default is `true`.
 
 # Output
 - `history`: iterate history.
@@ -27,7 +28,8 @@ function fit!(
     init    :: Symbol = :default, # :default or :user
     algo    :: Symbol  = :MM,
     log     :: Bool = false,
-    reml    :: Bool = false
+    reml    :: Bool = false,
+    se      :: Bool = true
     ) where T <: BlasReal
     Y, X, V = model.Y, model.X, model.V
     # dimensions
@@ -104,8 +106,11 @@ function fit!(
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)
             @info "updates converged!"
             copyto!(modelf.logl, logl)
-            fisher_Σ!(modelf)
             IterativeSolvers.setconv(history, true)
+            if se
+                fisher_B!(modelf)
+                fisher_Σ!(modelf)
+            end
             break
         end
     end
@@ -122,6 +127,7 @@ function fit!(
         copytri!(model.storage_nd_nd, 'U')
         update_B!(model)
         copyto!(model.logl, loglikelihood!(model))
+        se ? fisher_B!(modelf) : nothing
     end
     log && IterativeSolvers.shrink!(history)
     return history
@@ -323,6 +329,35 @@ function update_Ω!(
 end
 
 """
+    fisher_B!(model::MultiResponseVarianceComponentModel)
+
+Compute the sampling variance-covariance of regression coefficients `model.B`, 
+assuming inverse of covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
+"""
+function fisher_B!(
+    model :: MultiResponseVarianceComponentModel{T}
+    ) where T <: BlasReal
+    Ω⁻¹ = model.storage_nd_nd
+    G   = model.storage_pd_pd
+    # Gram matrix G = (Id⊗X')Ω⁻¹(Id⊗X) = (X'Ω⁻¹ᵢⱼX)ᵢⱼ, 1 ≤ i,j ≤ d
+    n, d, p = size(model.Y, 1), size(model.Y, 2), size(model.X, 2)
+    for j in 1:d
+        Ωcidx = ((j - 1) * n + 1):(j * n)
+        Gcidx = ((j - 1) * p + 1):(j * p)
+        for i in 1:j
+            Ωridx = ((i - 1) * n + 1):(i * n)
+            Gridx = ((i - 1) * p + 1):(i * p)
+            Ω⁻¹ᵢⱼ = view(Ω⁻¹, Ωridx, Ωcidx)
+            Gᵢⱼ   = view(G  , Gridx, Gcidx)
+            mul!(model.storage_n_p, Ω⁻¹ᵢⱼ, model.X)
+            mul!(Gᵢⱼ, transpose(model.X), model.storage_n_p)
+        end
+    end
+    copytri!(G, 'U')
+    copyto!(model.Bcov, pinv(G))
+end
+
+"""
     fisher_Σ!(model::MultiResponseVarianceComponentModel)
 
 Compute the sampling variance-covariance of variance component estimates `model.Σ`, 
@@ -335,10 +370,11 @@ function fisher_Σ!(
     n, d, m = size(model.Y, 1), size(model.Y, 2), length(model.V)
     nd = n * d
     np = m * d^2
-    # E[-∂logl/∂vechΣⱼᵀ∂vechΣᵢ] = 1/2 D_d'⋅Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅D_d,
-    # where Wᵢ = I_d⊗[(I_d⊗Vᵢ)K_dn]^(n) and Uᵢ = Wᵢ⋅D_d in manuscript
+    # E[-∂logl/∂vechΣⱼᵀ∂vechΣᵢ] = 1/2 Dd'⋅Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅Dd,
+    # where Wᵢ = I_d⊗[(I_d⊗Vᵢ)Kdn]^(n) and Uᵢ = Wᵢ⋅Dd in manuscript
     Fisher = zeros(T, np, np)
     @inbounds for i in 1:np
+        # compute 1/2 Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ
         # keep track of indices for each column of Wᵢ
         midx1  = div(i - 1, d^2) + 1 # 1 ≤ midx ≤ m to choose Vₖ
         d2idx1 = mod1(i, d^2) # 1 ≤ d2idx ≤ d² to choose column of Wᵢ
@@ -346,7 +382,7 @@ function fisher_Σ!(
         dridx1 = mod1(d2idx1, d) # 1 ≤ dridx ≤ d to chhoose columns of Ω⁻¹
         if rem(i, d) == 1
             BLAS.gemm!('N', 'N', one(T), view(Ω⁻¹, :, (ddidx1 * n + 1):(ddidx1 * n + n)), 
-                model.V[midx1], zero(T), model.storage_nd_n_2)
+                model.V[midx1], zero(T), model.storage_nd_n_1)
         end
         for j in i:np
             midx2  = div(j - 1, d^2) + 1
@@ -355,22 +391,23 @@ function fisher_Σ!(
             dridx2 = mod1(d2idx2, d)
             if (midx1 == midx2) && (ddidx1 * n == dridx2 * n - n)
                 for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
-                    Fisher[i, j] += dot(view(model.storage_nd_n_2, row, :), 
-                        view(model.storage_nd_n_2, (n * (dridx1 - 1) + 1):(n * dridx1), col))
+                    Fisher[i, j] += dot(view(model.storage_nd_n_1, row, :), 
+                        view(model.storage_nd_n_1, (n * (dridx1 - 1) + 1):(n * dridx1), col))
                 end
                 Fisher[i, j] /= 2
             else
                 BLAS.gemm!('N', 'N', one(T), view(Ω⁻¹, :, (dridx2 * n - n + 1):(dridx2 * n)), 
-                    model.V[midx2], zero(T), model.storage_nd_n_3)
+                    model.V[midx2], zero(T), model.storage_nd_n_2)
                 for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
-                    Fisher[i, j] += dot(view(model.storage_nd_n_2, row, :), 
-                        view(model.storage_nd_n_3, (n * (dridx1 - 1) + 1):(n * dridx1), col))
+                    Fisher[i, j] += dot(view(model.storage_nd_n_1, row, :), 
+                        view(model.storage_nd_n_2, (n * (dridx1 - 1) + 1):(n * dridx1), col))
                 end
                 Fisher[i, j] /= 2
             end
         end
     end
     copytri!(Fisher, 'U')
+    # compute 1/2 Dd'⋅Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅Dd
     vechF = zeros((m * d * (d + 1)) >> 1, (m * d * (d + 1)) >> 1)
     D = duplication(d)
     for i in 1:m
@@ -384,7 +421,7 @@ function fisher_Σ!(
             vechF[idx1:idx2, idx3:idx4] = D' * Fisher[idx5:idx6, idx7:idx8] * D
         end
     end
-    LinearAlgebra.copytri!(vechF, 'U')
+    copytri!(vechF, 'U')
     copyto!(model.Σcov, pinv(vechF))
 end
 
