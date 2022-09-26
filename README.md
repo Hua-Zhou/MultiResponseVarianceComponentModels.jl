@@ -7,10 +7,6 @@ pkg> add https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl.git
 ```
 ## Examples
 ```julia
-using Pkg
-Pkg.activate(@__DIR__)
-Pkg.add("MultiResponseVarianceComponentModels")
-
 using MultiResponseVarianceComponentModels, LinearAlgebra, Random
 const MRVC = MultiResponseVarianceComponentModel
 # simulation
