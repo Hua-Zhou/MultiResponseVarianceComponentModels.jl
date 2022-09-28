@@ -21,7 +21,7 @@ end
 """
     h2(model::MultiResponseVarianceComponentModel)
 
-Calculates heritability estimates and their standard errors assuming that all variance components 
+Calculates heritability estimates and their standard errors, assuming that all variance components 
 capture genetic effects except the last term. Also returns total heritability and its standard error
 from sum of individual contributions.
 """
@@ -29,11 +29,11 @@ function h2(
     model :: MultiResponseVarianceComponentModel{T}
     ) where T <: BlasReal
     m, d = length(model.Σ), size(model.Σ[1], 1)
-    h2s = zeros(T, m, d)
-    ses = zeros(T, m, d)
-    tot = sum([model.Σ[l] for l in 1:m])
-    idx = findvar(d)
-    s = binomial(d, 2) + d
+    h2s  = zeros(T, m, d)
+    ses  = zeros(T, m, d)
+    tot  = sum([model.Σ[l] for l in 1:m])
+    idx  = findvar(d)
+    s    = binomial(d, 2) + d
     for j in 1:d
         for i in 1:m
             w = [idx[j] + s * (l - 1) for l in 1:m]
@@ -62,4 +62,39 @@ function findvar(d::Int)
         r -= 1
     end
     idx
+end
+
+"""
+    rg(model::MultiResponseVarianceComponentModel)
+
+Calculates genetic/residual correlation estimates and their standard errors.
+"""
+function rg(
+    model :: MultiResponseVarianceComponentModel{T}
+    ) where T <: BlasReal
+    m, d = length(model.Σ), size(model.Σ[1], 1)
+    @assert d > 1
+    rgs = [zeros(T, d, d) for _ in 1:m]
+    ses = [ones(T, d, d) for _ in 1:m]
+    idx = findvar(d)
+    s   = binomial(d, 2) + d
+    for i in 1:m
+        D = Diagonal(model.Σ[i])
+        for j in 1:d
+            D[j, j] = 1 / sqrt(D[j, j])
+        end
+        rgs[i] = D * model.Σ[i] * D
+        for j in 1:d
+            w = idx .+ s * (i - 1)
+            for k in (j + 1):d
+                Σcov = model.Σcov[[(k - j) + w[j], w[j], w[k]], [(k - j) + w[j], w[j], w[k]]]
+                ∇rg = [1 / sqrt(model.Σ[i][j, j] * model.Σ[i][k, k]),
+                    -0.5 * model.Σ[i][j, k] / sqrt(model.Σ[i][k, k] * model.Σ[i][j, j]^3),
+                    -0.5 * model.Σ[i][j, k] / sqrt(model.Σ[i][k, k]^3 * model.Σ[i][j, j])]
+                ses[i][k, j] = sqrt(∇rg' * Σcov * ∇rg)
+            end
+        end
+    end
+    [copytri!(ses[i], 'L') for i in 1:m]
+    rgs, ses
 end
