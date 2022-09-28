@@ -4,21 +4,21 @@
 Fit a multivariate response variance component model by an MM or EM algorithm.
 
 # Positional arguments
-- `model`: a `MultiResponseVarianceComponentModel` instance.  
+- `model`            : a `MultiResponseVarianceComponentModel` instance.  
 
 # Keyword arguments
-- `maxiter::Integer`: maximum number of iterations. Default is `1000`.
-- `reltol::Real`: relative tolerance for convergence. Default is `1e-6`.
-- `verbose::Bool`: display algorithmic information. Default is `false`.
-- `init::Symbol`: initialization strategy. `:default` initialize by least squares.
+- `maxiter::Integer` : maximum number of iterations. Default is `1000`.
+- `reltol::Real`     : relative tolerance for convergence. Default is `1e-6`.
+- `verbose::Bool`    : display algorithmic information. Default is `false`.
+- `init::Symbol`     : initialization strategy. `:default` initialize by least squares.
     `:user` uses user supplied value at `model.B` and `model.Σ`.
-- `algo::Symbol`: optimization algorithm. `:MM` (default) or `EM`.
-- `log::Bool`: record iterate history or not. Defaut is `false`.
-- `reml::Bool`: REML instead of ML estimation. Default is `false`.
-- `se::Bool`: calculate standard errors. Default is `true`.
+- `algo::Symbol`     : optimization algorithm. `:MM` (default) or `EM`.
+- `log::Bool`        : record iterate history or not. Defaut is `false`.
+- `reml::Bool`       : REML instead of ML estimation. Default is `false`.
+- `se::Bool`         : calculate standard errors. Default is `true`.
 
 # Output
-- `history`: iterate history.
+- `history`          : iterate history.
 """
 function fit!(
     model   :: MultiResponseVarianceComponentModel{T};
