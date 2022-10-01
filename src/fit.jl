@@ -401,7 +401,7 @@ function fisher_Σ!(
     end
     copytri!(Fisher, 'U')
     # compute 1/2 Dd'⋅Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅Dd
-    vechF = zeros((m * d * (d + 1)) >> 1, (m * d * (d + 1)) >> 1)
+    vechF = zeros(T, (m * d * (d + 1)) >> 1, (m * d * (d + 1)) >> 1)
     D = duplication(d)
     for i in 1:m
         idx1 = Int(d * (d + 1) / 2 * (i - 1) + 1)
