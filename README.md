@@ -1,4 +1,9 @@
 # MultiResponseVarianceComponentModels
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels/dev)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels/stable)
+[![CI](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/workflows/CI/badge.svg)](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/actions)
+[![Codecov](https://codecov.io/gh/Hua-Zhou/MultiResponseVarianceComponentModels.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Hua-Zhou/MultiResponseVarianceComponentModels.jl)
+
 MultiResponseVarianceComponentModels.jl is a package that allows fitting and testing multivariate response variance components linear mixed models of form 
 
 <p align="center"><img width="70%" style="border-radius: 5px;" src="MRVC.png"></p>
