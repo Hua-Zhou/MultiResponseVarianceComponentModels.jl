@@ -21,7 +21,7 @@ end
 """
     h2(model::MultiResponseVarianceComponentModel)
 
-Calculates heritability estimates and their standard errors, assuming that all variance components 
+Calculate heritability estimates and their standard errors, assuming that all variance components 
 capture genetic effects except the last term. Also returns total heritability and its standard error
 from sum of individual contributions.
 """
@@ -67,7 +67,7 @@ end
 """
     rg(model::MultiResponseVarianceComponentModel)
 
-Calculates genetic/residual correlation estimates and their standard errors.
+Calculate genetic/residual correlation estimates and their standard errors.
 """
 function rg(
     model :: MultiResponseVarianceComponentModel{T}
