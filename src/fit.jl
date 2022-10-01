@@ -38,10 +38,10 @@ function fit!(
     if reml
         Ỹ, Ṽ, _ = project_null(model.Y, model.X, model.V)
         modelf = MultiResponseVarianceComponentModel(Ỹ, Ṽ)
-        @info("running $(algo) algorithm for REML estimation")
+        @info "running $(algo) algorithm for REML estimation"
     else
         modelf = model
-        @info("running $(algo) algorithm for ML estimation")
+        @info "running $(algo) algorithm for ML estimation"
     end
     # record iterate history if requested
     history          = ConvergenceHistory(partial = !log)
@@ -108,6 +108,7 @@ function fit!(
             copyto!(modelf.logl, logl)
             IterativeSolvers.setconv(history, true)
             if se
+                @info "calculating standard errors"
                 fisher_B!(modelf)
                 fisher_Σ!(modelf)
             end
@@ -370,40 +371,32 @@ function fisher_Σ!(
     n, d, m = size(model.Y, 1), size(model.Y, 2), length(model.V)
     nd = n * d
     np = m * d^2
+    for k in 1:m
+        for j in 1:d
+            mul!(view(model.storages_nd_nd[k], :, ((j - 1) * n + 1):(j * n)), 
+                view(Ω⁻¹, :, ((j - 1) * n + 1):(j * n)), model.V[k])
+        end
+    end
     # E[-∂logl/∂vechΣⱼᵀ∂vechΣᵢ] = 1/2 Dd'⋅Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅Dd,
     # where Wᵢ = I_d⊗[(I_d⊗Vᵢ)Kdn]^(n) and Uᵢ = Wᵢ⋅Dd in manuscript
     Fisher = zeros(T, np, np)
     @inbounds for i in 1:np
         # compute 1/2 Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ
         # keep track of indices for each column of Wᵢ
-        midx1  = div(i - 1, d^2) + 1 # 1 ≤ midx ≤ m to choose Vₖ
+        k1     = div(i - 1, d^2) + 1 # 1 ≤ k1 ≤ m to choose Vₖ
         d2idx1 = mod1(i, d^2) # 1 ≤ d2idx ≤ d² to choose column of Wᵢ
         ddidx1 = div(d2idx1 - 1, d) # 0 ≤ ddidx ≤ d - 1 to choose columns of Ω⁻¹
-        dridx1 = mod1(d2idx1, d) # 1 ≤ dridx ≤ d to chhoose columns of Ω⁻¹
-        if rem(i, d) == 1
-            BLAS.gemm!('N', 'N', one(T), view(Ω⁻¹, :, (ddidx1 * n + 1):(ddidx1 * n + n)), 
-                model.V[midx1], zero(T), model.storage_nd_n_1)
-        end
+        dridx1 = mod1(d2idx1, d) # 1 ≤ dridx ≤ d to choose columns of Ω⁻¹
         for j in i:np
-            midx2  = div(j - 1, d^2) + 1
+            k2     = div(j - 1, d^2) + 1
             d2idx2 = mod1(j, d^2)
             ddidx2 = div(d2idx2 - 1, d)
             dridx2 = mod1(d2idx2, d)
-            if (midx1 == midx2) && (ddidx1 * n == dridx2 * n - n)
-                for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
-                    Fisher[i, j] += dot(view(model.storage_nd_n_1, row, :), 
-                        view(model.storage_nd_n_1, (n * (dridx1 - 1) + 1):(n * dridx1), col))
-                end
-                Fisher[i, j] /= 2
-            else
-                BLAS.gemm!('N', 'N', one(T), view(Ω⁻¹, :, (dridx2 * n - n + 1):(dridx2 * n)), 
-                    model.V[midx2], zero(T), model.storage_nd_n_2)
-                for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
-                    Fisher[i, j] += dot(view(model.storage_nd_n_1, row, :), 
-                        view(model.storage_nd_n_2, (n * (dridx1 - 1) + 1):(n * dridx1), col))
-                end
-                Fisher[i, j] /= 2
+            for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
+                Fisher[i, j] += dot(view(model.storages_nd_nd[k1], row, (ddidx1 * n + 1):(ddidx1 * n + n)), 
+                    view(model.storages_nd_nd[k2], (n * (dridx1 - 1) + 1):(n * dridx1), dridx2 * n - n + col))
             end
+            Fisher[i, j] /= 2
         end
     end
     copytri!(Fisher, 'U')

@@ -46,8 +46,7 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     storage_p_p      :: Matrix{T}
     storage_nd_nd    :: Matrix{T}
     storage_pd_pd    :: Matrix{T}
-    storage_nd_n_1   :: Matrix{T}
-    storage_nd_n_2   :: Matrix{T}
+    storages_nd_nd   :: Vector{Matrix{T}}
     Bcov             :: Matrix{T}
     Σcov             :: Matrix{T}
     logl             :: Vector{T}
@@ -96,8 +95,7 @@ function MultiResponseVarianceComponentModel(
     storage_p_p      = Matrix{T}(undef, p, p)
     storage_nd_nd    = Matrix{T}(undef, nd, nd)
     storage_pd_pd    = Matrix{T}(undef, pd, pd)
-    storage_nd_n_1   = Matrix{T}(undef, nd, n)
-    storage_nd_n_2   = Matrix{T}(undef, nd, n)
+    storages_nd_nd   = [Matrix{T}(undef, nd, nd) for _ in 1:m]
     Bcov             = Matrix{T}(undef, pd, pd)
     Σcov             = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d))
     logl             = zeros(T, 1)
@@ -110,7 +108,7 @@ function MultiResponseVarianceComponentModel(
         storage_d_d_1, storage_d_d_2, storage_d_d_3, 
         storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
         storage_p_p, storage_nd_nd, storage_pd_pd,
-        storage_nd_n_1, storage_nd_n_2, Bcov, Σcov, logl)
+        storages_nd_nd, Bcov, Σcov, logl)
 end
 
 MultiResponseVarianceComponentModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}) = 
