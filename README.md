@@ -1,3 +1,5 @@
+<p align="center"><img width="100%" style="border-radius: 5px;" src="docs/src/assets/logo.svg"></p>
+
 # MultiResponseVarianceComponentModels
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/stable)
