@@ -7,7 +7,7 @@ CurrentModule = MultiResponseVarianceComponentModels
 [__MultiResponseVarianceComponentModels.jl__](https://github.com/hua-zhou/MultiResponseVarianceComponentModels.jl) is a package for fitting and testing multivariate response variance components linear mixed models of form
 
 ```math
-\text{vec}(\boldsymbol{Y}) \sim \mathcal{N}(\text{vec}(\boldsymbol{X} \boldsymbol{B}), \sum_{i=1}^m \boldsymbol{\Gamma}_i \otimes \boldsymbol{V}_i),
+\text{vec}\ \boldsymbol{Y} \sim \mathcal{N}(\text{vec}(\boldsymbol{X} \boldsymbol{B}), \sum_{i=1}^m \boldsymbol{\Gamma}_i \otimes \boldsymbol{V}_i),
 ```
 
 where ``\boldsymbol{Y}`` and ``\boldsymbol{X}`` are ``n \times d`` response and  ``n \times p`` predictor matrices, respectively, and ``\boldsymbol{V}_1, \ldots, \boldsymbol{V}_m`` are ``m`` known positive semidefinite matrices. The parameters of the model include ``p \times d`` mean effects ``\boldsymbol{B}`` and ``d \times d`` variance components (``\boldsymbol{\Gamma}_1, \dots, \boldsymbol{\Gamma}_m``), which [MultiResponseVarianceComponentModels.jl](https://github.com/hua-zhou/MultiResponseVarianceComponentModels.jl) estimates through either [minorization-maximization (MM)](https://en.wikipedia.org/wiki/MM_algorithm) or [expectation–maximization (EM)](https://en.wikipedia.org/wiki/Expectation–maximization_algorithm) algorithms.
