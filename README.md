@@ -8,7 +8,7 @@
 
 MultiResponseVarianceComponentModels.jl is a package that allows fitting and testing multivariate response variance components linear mixed models of form 
 
-<p align="center"><img width="70%" style="border-radius: 5px;" src="MRVC.png"></p>
+<p align="center"><img width="70%" style="border-radius: 5px;" src="docs/src/assets/MRVC.png"></p>
 
 ## Installation
 ```julia
