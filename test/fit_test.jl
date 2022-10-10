@@ -26,7 +26,7 @@ B_true = 2rand(p, d) # uniform on [0, 2]
     Matrix(UniformScaling(0.2), d, d), 
     Matrix(UniformScaling(0.2), d, d),
     Matrix(UniformScaling(0.6), d, d)
-]
+    ]
 Ω_true = zeros(n * d, n * d)
 for k in 1:m
     Ω_true .+= kron(Σ_true[k], V[k])
