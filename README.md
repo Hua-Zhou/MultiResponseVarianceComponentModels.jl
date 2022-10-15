@@ -15,6 +15,9 @@ MultiResponseVarianceComponentModels.jl is a package that allows fitting and tes
 julia> ]
 pkg> add https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl.git
 ```
+## Documentation
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
+
 ## Examples
 ```julia
 using MultiResponseVarianceComponentModels, LinearAlgebra, Random
@@ -48,10 +51,14 @@ model = MRVC(Y, X, V)
 @time fit!(model, reml = true, verbose = true)
 
 model.Σ
-reduce(hcat,[hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
+reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
 model.Σcov # sampling variance by inverse of Fisher information matrix
 diag(model.Σcov) # (binomial(d, 2) + d) * m variance/covariance parameters
 model.logl
 ```
 ## References
-> Zhou et al., (2019). MM Algorithms For Variance Components Models. Journal of Computational and Graphical Statistics, 28(2): 350–361, https://doi.org/10.1080/10618600.2018.1529601.
+- H. Zhou, L. Hu, J. Zhou, and K. Lange: **MM Algorithms For Variance Components Models** (2019) ([link](https://doi.org/10.1080/10618600.2018.1529601))
+- M. Kim: **Gene regulation in the human brain and the biological mechanisms underlying psychiatric disorders** (2022) ([link](https://escholarship.org/uc/item/9v08q5f7))
+
+## See also
+- J. Kim, J. Shen, A. Wang, D.V. Mehrotra, S. Ko, J.J. Zhou, and H. Zhou: **VCSEL: Prioritizing SNP-set by penalized variance component selection** (2021) ([link](http://doi.org/10.1214/21-aoas1491))
