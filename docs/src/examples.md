@@ -26,6 +26,10 @@ end
 Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
 ```
 
+!!! note
+
+    In the case of heritability and genetic correlation analyses, one can use classic genetic relationship matrices (GRMs) for ``\boldsymbol{V}_i``'s, which in turn can be constructed using [__SnpArrays.jl__](https://github.com/OpenMendel/SnpArrays.jl).
+
 # Maximum likelihood estimation
 ```@repl 1
 model = MultiResponseVarianceComponentModel(Y, X, V)

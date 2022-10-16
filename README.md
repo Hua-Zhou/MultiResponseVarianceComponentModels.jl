@@ -57,7 +57,7 @@ diag(model.Σcov) # (binomial(d, 2) + d) * m variance/covariance parameters
 model.logl
 ```
 ## References
-- H. Zhou, L. Hu, J. Zhou, and K. Lange: **MM Algorithms For Variance Components Models** (2019) ([link](https://doi.org/10.1080/10618600.2018.1529601))
+- H. Zhou, L. Hu, J. Zhou, and K. Lange: **MM algorithms for variance components models** (2019) ([link](https://doi.org/10.1080/10618600.2018.1529601))
 - M. Kim: **Gene regulation in the human brain and the biological mechanisms underlying psychiatric disorders** (2022) ([link](https://escholarship.org/uc/item/9v08q5f7))
 
 ## See also
