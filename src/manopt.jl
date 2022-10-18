@@ -92,3 +92,39 @@ function update_Σk!(
     mul!(model.Σ[k], Usol, transpose(Usol))
     model.Σ[k]
 end
+
+"""
+    update_Γk!(model, k, rk)
+
+Update the `model.Γ[k]` assuming it has rank `rk < d`, assuming inverse of 
+covariance matrix `model.Ω` is available at `model.storage_nd_nd` and 
+`model.Ω⁻¹R` precomputed.
+"""
+function update_Γk!(
+    model :: MultiResponseVarianceComponentModel{T},
+    k     :: Integer
+    ) where T <: BlasReal
+    rk = size(model.Γ[k], 2)
+    Ω⁻¹ = model.storage_nd_nd
+    # M = storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k]))
+    kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
+    M = model.storage_d_d_1
+    chol_M = cholesky(Symmetric(M))
+    # Store ΓₖΓₖᵀ in Σₖ
+    BLAS.syrk!('L', 'N', one(T), model.Γ[k], zero(T), model.Σ[k])
+    model.Σ[k] .= Symmetric(model.Σ[k], :L)
+    # N = storage_d_d_2 = Σ[k] * (R' * V[k] * R) * Σ[k]
+    mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
+    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
+    N = model.storage_d_d_2
+    chol_N = cholesky(Symmetric(N))
+
+    ◺N_◺M_inv = (model.Σ[k] * chol_N.L) / chol_M.L
+    svd_◺N_◺M_inv = svd(◺N_◺M_inv)
+
+    copyto!(model.Γ[k], view(svd_◺N_◺M_inv.U, :, 1:rk))
+    model.Γ[k] .= model.Γ[k] * diagm(sqrt.(view(svd_◺N_◺M_inv.S, 1:rk)))
+
+    mul!(model.Σ[k], model.Γ[k], transpose(model.Γ[k]))
+    model.Σ[k]
+end
