@@ -22,6 +22,7 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     # parameters
     B                :: Matrix{T}
     Γ                :: Vector{Matrix{T}}
+    Ψ                :: Matrix{T}
     Σ                :: Vector{Matrix{T}}
     Ω                :: Matrix{T} # covariance Ω = Σ[1] ⊗ V[1] + ... + Σ[m] ⊗ V[m]
     Σ_rank           :: Vector{Int}
@@ -73,6 +74,7 @@ function MultiResponseVarianceComponentModel(
     # parameters
     B                = Matrix{T}(undef, p, d)
     Γ                = [Matrix{T}(undef, d, Σ_rank[k]) for k in 1:m]
+    Ψ                = Matrix{T}(undef, d, m)
     Σ                = [Matrix{T}(undef, d, d) for _ in 1:m]
     Ω                = Matrix{T}(undef, nd, nd)
     V_rank           = [rank(V[k]) for k in 1:m]
@@ -103,7 +105,7 @@ function MultiResponseVarianceComponentModel(
     logl             = zeros(T, 1)
     MultiResponseVarianceComponentModel{T}(
         Y, Xmat, V,
-        B, Γ, Σ, Ω, Σ_rank, V_rank,
+        B, Γ, Ψ, Σ, Ω, Σ_rank, V_rank,
         R, Ω⁻¹R, xtx, xty,
         storage_nd_1, storage_nd_2, storage_pd,
         storage_n_d, storage_n_p, storage_p_d,
