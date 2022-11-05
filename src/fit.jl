@@ -301,7 +301,7 @@ function loglikelihood!(
     copyto!(model.storage_nd_1, model.R)
     BLAS.trsv!('U', 'T', 'N', model.storage_nd_nd, model.storage_nd_1)
     # assemble pieces for log-likelihood
-    logl = norm(model.storage_nd_1)^2 + length(model.storage_nd_1) * log(2π)
+    logl = sum(abs2, model.storage_nd_1) + length(model.storage_nd_1) * log(2π)
     @inbounds for i in 1:length(model.storage_nd_1)
         logl += 2log(model.storage_nd_nd[i, i])
     end
@@ -320,10 +320,10 @@ function update_res!(
 end
 
 function update_Ω!(
-    model :: MultiResponseVarianceComponentModel
-    )
-    fill!(model.Ω, 0)
-    for k in 1:length(model.V)
+    model :: MultiResponseVarianceComponentModel{T}
+    ) where T <: BlasReal
+    fill!(model.Ω, zero(T))
+    @inbounds for k in 1:length(model.V)
         kron_axpy!(model.Σ[k], model.V[k], model.Ω)
     end
     model.Ω
