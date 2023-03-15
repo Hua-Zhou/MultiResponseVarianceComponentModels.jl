@@ -18,6 +18,7 @@ include("variancecomponents.jl")
 include("multivariate_calculus.jl")
 include("fit.jl")
 include("parse.jl")
+include("CG.jl")
 # include("manopt.jl")
 
 end
