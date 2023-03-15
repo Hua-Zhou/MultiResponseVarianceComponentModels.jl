@@ -92,7 +92,7 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
     display(mrvc.B)
     println()
     for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.Σ[k]))")
+        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.VarComp[k].Σ))")
         println()
     end
     display(hist)
@@ -108,7 +108,7 @@ end
     display(mrvc.B)
     println()
     for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.Σ[k]))")
+        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.VarComp[k].Σ))")
         println()
     end
     display(hist)

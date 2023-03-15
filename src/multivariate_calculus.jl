@@ -75,7 +75,7 @@ function project_null(
         transpose!(Xt, X)
         A = nullspace(Xt)
         s = size(A, 2) 
-        Ỹ = A' * Y
+        Ỹ = transpose(A) * Y
         Ṽ = Vector{Matrix{T}}(undef, m)
         storage = zeros(n, s)
         for i in 1:(m - 1)
@@ -87,7 +87,68 @@ function project_null(
     end 
 end
 
-vech(A) = [A[i, j] for i in 1:size(A, 1), j in 1:size(A, 2) if i ≥ j]
+"""
+    ◺(n::Integer)
+
+Triangular number `n * (n + 1) / 2`.
+"""
+@inline ◺(n::Integer) = (n * (n + 1)) >> 1
+
+function ◺inv(d::Integer)
+    res = floor(Integer, sqrt(2*d))
+    @assert ◺(res) == d 
+    return res
+end
+
+function vech!(
+    vechA::AbstractVector{T},
+    A::AbstractMatrix{T}
+    ) where {T<:Real}
+    d = size(A, 1)
+    @assert length(vechA) == ◺(d)
+    i = 1
+    for j in 1:d
+        for k in j:d
+            @inbounds vechA[i] = A[k, j]
+            i += 1
+        end
+    end
+    return vechA
+end
+
+function vech(
+    A::AbstractMatrix{T}
+    ) where {T<:Real}
+    d = size(A, 1)
+    vechA = Vector{T}(undef, ◺(d))
+    vech!(vechA, A)
+    return vechA
+end
+
+function unvech!(
+    A::AbstractMatrix{T},
+    vechA::AbstractVector{T}
+    ) where {T<:Real}
+    d = size(A, 1)
+    @assert length(vechA) == ◺(d)
+    i = 1
+    for j in 1:d
+        for k in j:d
+            @inbounds A[k, j] = vechA[i]
+            i += 1
+        end
+    end
+    return A
+end
+
+function unvech(
+    vechA::AbstractVector{T}
+    ) where {T<:Real}
+    d = ◺inv(length(vechA))
+    A = zeros(T, d, d)
+    unvech!(A, vechA)
+    return A
+end
 
 function commutation(m, n)
     mn = m * n 
