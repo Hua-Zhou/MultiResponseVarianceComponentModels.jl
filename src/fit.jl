@@ -14,6 +14,7 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     Ω⁻¹R             :: Matrix{T}
     xtx              :: Matrix{T} # Gram matrix X'X
     xty              :: Matrix{T} # X'Y
+    storage_d        :: Vector{T}
     storage_nd_1     :: Vector{T}
     storage_nd_2     :: Vector{T}
     storage_pd       :: Vector{T}
@@ -70,6 +71,7 @@ function MultiResponseVarianceComponentModel(
     Ω⁻¹R             = Matrix{T}(undef, n, d)
     xtx              = transpose(Xmat) * Xmat
     xty              = transpose(Xmat) * Y
+    storage_d        = Vector{T}(undef, d)
     storage_nd_1     = Vector{T}(undef, nd)
     storage_nd_2     = Vector{T}(undef, nd)
     storage_pd       = Vector{T}(undef, pd)
@@ -94,7 +96,7 @@ function MultiResponseVarianceComponentModel(
         Y, Xmat, V,
         B, VarComp, Ω, Σ_rank, V_rank,
         R, Ω⁻¹R, xtx, xty,
-        storage_nd_1, storage_nd_2, storage_pd,
+        storage_d, storage_nd_1, storage_nd_2, storage_pd,
         storage_n_d, storage_n_p, storage_p_d,
         storage_d_d_1, storage_d_d_2, storage_d_d_3, 
         storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
@@ -296,12 +298,12 @@ function initialize!(
             for j in 1:rk
                 eigtemp.values[j] = max(1e-8, sqrt(eigtemp.values[j]))
                 for i in 1:d
-                    model.Σ[k].F[i, j] = eigtemp.vectors[i, j] * eigtemp.values[j]
+                    model.VarComp[k].F[i, j] = eigtemp.vectors[i, j] * eigtemp.values[j]
                 end
             end
             BLAS.syrk!('L', 'N', -one(T), model.VarComp[k].F, one(T), model.VarComp[k].Σ)
             # trace fill
-            fill!(parent(model.Σ[k].Ψ), tr(model.VarComp[k].Σ) / d)
+            fill!(parent(model.VarComp[k].Ψ), tr(model.VarComp[k].Σ) / d)
             # Residual fill
             # for j in 1:d
             #     model.VarComp[k].Ψ[j, j] = model.VarComp[k].Σ[j, j]
@@ -335,7 +337,8 @@ function update_Σ!(
         if model.Σ_rank[k] ≥ d
             update_Σk!(model, k, Val(algo))
         else
-            update_Σk!(model, k, model.Σ_rank[k], Val(:MM))
+            # TODO: EM algorithm for structured variance components
+            update_Σk!(model, k, model.Σ_rank[k], Val(algo))
         end
     end
     update_Ω!(model)
