@@ -36,3 +36,23 @@ function LowRankPlusDiagonal(d::Int, r::Int, ::Type{T}) where {T<:BlasReal}
         Matrix{T}(undef, d, r),
         Diagonal{T}(undef, d))
 end
+
+struct LowRank{T} <: VarCompStructure{T}
+    Σ    :: Matrix{T}
+    F    :: Matrix{T}
+end
+
+function LowRank(F::Matrix{T}) where {T<:BlasReal}
+    d, r = size(F)
+    Σ = Matrix{T}(undef, d, d)
+    BLAS.syrk!('L', 'N', one(T), F, zero(T), Σ)
+    copytri!(Σ, 'L')
+    LowRank{T}(Σ, F)
+end
+
+function LowRank(d::Int, r::Int, ::Type{T}) where {T<:BlasReal}
+    LowRank{T}(
+        Matrix{T}(undef, d, d), 
+        Matrix{T}(undef, d, r)
+        )
+end

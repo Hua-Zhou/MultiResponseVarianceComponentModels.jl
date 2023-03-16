@@ -9,6 +9,9 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     Ω                :: Matrix{T} # covariance Ω = Σ[1] ⊗ V[1] + ... + Σ[m] ⊗ V[m]
     Σ_rank           :: Vector{Int}
     # working arrays
+    RtVR             :: Vector{Matrix{T}}
+    storages_d_d     :: Vector{Matrix{T}}
+    V_sqnorm         :: Matrix{T}
     V_rank           :: Vector{Int}
     R                :: Matrix{T} # residuals
     Ω⁻¹R             :: Matrix{T}
@@ -18,7 +21,7 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     storage_nd_1     :: Vector{T}
     storage_nd_2     :: Vector{T}
     storage_pd       :: Vector{T}
-    storage_n_d      :: Matrix{T}
+    storage_n_d_1    :: Matrix{T}
     storage_n_d_2    :: Matrix{T}
     storage_n_d_3    :: Matrix{T}
     storage_n_p      :: Matrix{T}
@@ -67,6 +70,16 @@ function MultiResponseVarianceComponentModel(
         end
     end
     Ω                = Matrix{T}(undef, nd, nd)
+    RtVR             = [Matrix{T}(undef, d, d) for _ in 1:m]
+    storages_d_d     = [Matrix{T}(undef, d, d) for _ in 1:m]
+    V_sqnorm         = Matrix{T}(undef, m, m)
+    for j in 1:m
+        for i in j:m
+            V_sqnorm[i, j] = dot(V[i], V[j])
+        end
+    end
+    copytri!(V_sqnorm, 'L')
+     # TODO: estimates rank by svd, do we need this?
     V_rank           = [rank(V[k]) for k in 1:m]
     # working arrays
     R                = Matrix{T}(undef, n, d)
@@ -77,7 +90,7 @@ function MultiResponseVarianceComponentModel(
     storage_nd_1     = Vector{T}(undef, nd)
     storage_nd_2     = Vector{T}(undef, nd)
     storage_pd       = Vector{T}(undef, pd)
-    storage_n_d      = Matrix{T}(undef, n, d)
+    storage_n_d_1    = Matrix{T}(undef, n, d)
     storage_n_d_2    = Matrix{T}(undef, n, d)
     storage_n_d_3    = Matrix{T}(undef, n, d)
     storage_n_p      = Matrix{T}(undef, n, p)
@@ -98,10 +111,11 @@ function MultiResponseVarianceComponentModel(
     logl             = zeros(T, 1)
     MultiResponseVarianceComponentModel{T}(
         Y, Xmat, V,
-        B, VarComp, Ω, Σ_rank, V_rank,
+        B, VarComp, Ω, Σ_rank, 
+        RtVR, storages_d_d, V_sqnorm, V_rank,
         R, Ω⁻¹R, xtx, xty,
         storage_d, storage_nd_1, storage_nd_2, storage_pd,
-        storage_n_d, storage_n_d_2, storage_n_d_3,
+        storage_n_d_1, storage_n_d_2, storage_n_d_3,
         storage_n_p, storage_p_d,
         storage_d_d_1, storage_d_d_2, storage_d_d_3, 
         storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
@@ -323,7 +337,7 @@ function initialize!(
 end
 
 """
-    update_Σ!(model::MultiResponseVarianceComponentModel)
+    update_Σ!(model::MultiResponseVarianceComponentModel; algo::Symbol)
 
 Update the variance component parameters `model.VarComp`, assuming inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
@@ -370,8 +384,8 @@ function update_Σk!(
     _, info = LAPACK.potrf!('L', model.storage_d_d_1)
     info > 0 && throw("gradient of Σ[$k] is singular")
     # storage_d_d_2 = L' * Σ[k] * (R' * V[k] * R) * Σ[k] * L
-    mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
-    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
+    mul!(model.storage_n_d_1, model.V[k], model.Ω⁻¹R)
+    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d_1)
     BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, Σk)
     mul!(model.storage_d_d_3, model.storage_d_d_2, Σk)
     mul!(model.storage_d_d_2, transpose(Σk), model.storage_d_d_3)
@@ -417,8 +431,8 @@ function update_Σk!(
     # storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k])) = the Mnj matrix in manuscript
     kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
     # storage_d_d_2 = R' * V[k] * R
-    mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
-    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
+    mul!(model.storage_n_d_1, model.V[k], model.Ω⁻¹R)
+    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d_1)
     # storage_d_d_2 = (R' * V[k] * R - Mk) / rk
     model.storage_d_d_2 .= (model.storage_d_d_2 .- model.storage_d_d_1) ./ model.V_rank[k]
     mul!(model.storage_d_d_1, model.storage_d_d_2, Σk)
@@ -455,8 +469,8 @@ function update_Σk!(
     M = model.storage_d_d_1
 
     # N = storage_d_d_2 = R' * V[k] * R
-    mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
-    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
+    mul!(model.storage_n_d_1, model.V[k], model.Ω⁻¹R)
+    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d_1)
     N = model.storage_d_d_2
 
     # Update Ψ[k]
@@ -561,7 +575,6 @@ function update_Σk!(
     return Σk
 end
 
-
 """
     update_B!(model::MultiResponseVarianceComponentModel)
 
@@ -592,8 +605,8 @@ function update_B!(
     # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
     copyto!(model.storage_nd_1, model.Y)
     mul!(model.storage_nd_2, model.storage_nd_nd, model.storage_nd_1)
-    copyto!(model.storage_n_d, model.storage_nd_2)
-    mul!(model.storage_p_d, transpose(model.X), model.storage_n_d)
+    copyto!(model.storage_n_d_1, model.storage_nd_2)
+    mul!(model.storage_p_d, transpose(model.X), model.storage_n_d_1)
     # Cholesky solve
     _, info = LAPACK.potrf!('U', G)
     info > 0 && throw("Gram matrix (Id⊗X')Ω⁻¹(Id⊗X) is singular")
