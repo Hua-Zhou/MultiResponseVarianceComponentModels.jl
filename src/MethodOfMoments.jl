@@ -113,7 +113,38 @@ function update_Σ_MoM_grad!(
     end
 end
 
-# function update_B_MM!(
-
-# ) where {T <: BlasReal}
-# end
+function update_B_MM!(
+    model::MultiResponseVarianceComponentModel{T};
+    maxiter::Int = 100,
+    cgmaxiter::Int = 100,
+    cgtol::T = T(1e-8)
+    ) where {T <: BlasReal}
+    n = size(model.X, 1)
+    # Assumes that V₁ = Iₙ
+    Bn = model.B
+    Δn = model.storage_p_d
+    # initialization
+    update_res!(model)
+    copyto!(model.storage_p_p, model.xtx)
+    _, info = LAPACK.potrf!('L', model.storage_p_p)
+    info > 0 && throw("design matrix X is rank deficient")
+    # L = eigmax(model.Ω)
+    for k in 1:maxiter
+        # NOTE: Conjugate Gradient can be unstable numerically without careful implementation
+        ConjGrad!(model; tol = cgtol, maxiter = cgmaxiter)
+        # copyto!(model.storage_nd_1, model.R)
+        # model.storage_nd_1 .= model.Ω \ model.storage_nd_1
+        # copyto!(model.Ω⁻¹R, model.storage_nd_1)
+        # Δ_n = (XᵀX)⁻¹[Xᵀ vec⁻¹(Ω⁻¹ vec(R_n))] Σ₁
+        BLAS.gemm!('T', 'N', one(T), model.X, model.Ω⁻¹R, zero(T), Δn)
+        # Checking the norm of the gradient
+        @show norm(Δn)
+        LAPACK.potrs!('L', model.storage_p_p, Δn)
+        # B_{n+1} = B_n + Δ_n
+        BLAS.symm!('R', 'L', one(T), model.VarComp[1].Σ, Δn, one(T), Bn)
+        # axpy!(inv(L), Δn, Bn)
+        # Update residuals
+        # R_{n+1} = Y - XB_{n+1} 
+        update_res!(model)
+    end
+end

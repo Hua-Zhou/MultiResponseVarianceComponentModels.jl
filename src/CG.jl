@@ -35,44 +35,48 @@ end
 # Want the solution of Ωx = vec(R)
 # implicitly assume x0 = 0
 function ConjGrad!(
-    model   :: MultiResponseVarianceComponentModel{T},
-    x0      :: AbstractArray{T};
+    model   :: MultiResponseVarianceComponentModel{T};
+    # x0      :: AbstractArray{T};
     tol     :: T = T(1e-8),
     maxiter :: Int = 100
     ) where {T<:BlasReal}
     # Assume Y - XB has already been stored in model.R
+    rhs   = model.R
     x     = model.Ω⁻¹R
-    # copyto!(x, model.R)
-    copyto!(x, x0)
 
     # Initialize residual and initial direction
-    resid = model.R
+    resid = model.storage_nd_1
+    copyto!(resid, rhs)
     axpy!(-one(T), x, resid)
-    
-    dir   = model.storage_nd_1
-    copyto!(dir, model.R)
-    
-    rtr_old = sum(abs2, resid)
-    rtr_new = rtr_old
+
+    dir   = model.storage_nd_2
+    copyto!(dir, -resid)
+
     iter = 0
+    flag = false
     while iter ≤ maxiter
-        rtr_old = rtr_new
-        Ω_mul_x!(model.storage_nd_2, model, dir)
-        α = rtr_old / dot(dir, model.storage_nd_2)
-        # x     .= x .+ α .* dir
-        axpy!(α, dir, x)
-        # resid .= resid .- α .* model.storage_nd_2
-        axpy!(-α, model.storage_nd_2, resid)
-        rtr_new = sum(abs2, resid)
-        if sqrt(rtr_new) < tol
-            # @show rtr_new
-            # @show iter
+        iter += 1
+        Ω_mul_x!(model.storage_nd_3, model, dir)
+        dir_t_A_dir = dot(dir, model.storage_nd_3)
+        β = -dot(resid, dir) / dir_t_A_dir
+        # x .= x .+ β .* dir
+        axpy!(β, dir, x)
+        # update residual
+        Ω_mul_x!(resid, model, x)
+        axpy!(-one(T), rhs, resid)
+
+        # Convergence Check
+        if norm(resid, 2) < tol
             break
         else
-            β = rtr_new / rtr_old
-            axpby!(one(T), resid, β, dir)
-            # dir .= resid .+ β .* dir
-            iter += 1
+            χ = dot(resid, model.storage_nd_3) / dir_t_A_dir
+            # dir .= resid .+ χ .* dir
+            axpby!(one(T), resid, χ, dir)
+            if iter == maxiter
+                @show norm(resid)
+                flag = true
+            end
         end
     end
+    # flag == true && @warn "Conjugate Gradient Iterations did not converge"
 end

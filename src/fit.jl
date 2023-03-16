@@ -20,6 +20,7 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     storage_d        :: Vector{T}
     storage_nd_1     :: Vector{T}
     storage_nd_2     :: Vector{T}
+    storage_nd_3     :: Vector{T}
     storage_pd       :: Vector{T}
     storage_n_d_1    :: Matrix{T}
     storage_n_d_2    :: Matrix{T}
@@ -89,6 +90,7 @@ function MultiResponseVarianceComponentModel(
     storage_d        = Vector{T}(undef, d)
     storage_nd_1     = Vector{T}(undef, nd)
     storage_nd_2     = Vector{T}(undef, nd)
+    storage_nd_3     = Vector{T}(undef, nd)
     storage_pd       = Vector{T}(undef, pd)
     storage_n_d_1    = Matrix{T}(undef, n, d)
     storage_n_d_2    = Matrix{T}(undef, n, d)
@@ -114,7 +116,7 @@ function MultiResponseVarianceComponentModel(
         B, VarComp, Ω, Σ_rank, 
         RtVR, storages_d_d, V_sqnorm, V_rank,
         R, Ω⁻¹R, xtx, xty,
-        storage_d, storage_nd_1, storage_nd_2, storage_pd,
+        storage_d, storage_nd_1, storage_nd_2, storage_nd_3, storage_pd,
         storage_n_d_1, storage_n_d_2, storage_n_d_3,
         storage_n_p, storage_p_d,
         storage_d_d_1, storage_d_d_2, storage_d_d_3, 
