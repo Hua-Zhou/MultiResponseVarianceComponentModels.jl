@@ -9,38 +9,45 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     Ω                :: Matrix{T} # covariance Ω = Σ[1] ⊗ V[1] + ... + Σ[m] ⊗ V[m]
     Σ_rank           :: Vector{Int}
     # working arrays
-    RtVR             :: Vector{Matrix{T}}
-    storages_d_d     :: Vector{Matrix{T}}
-    V_sqnorm         :: Matrix{T}
-    V_rank           :: Vector{Int}
-    R                :: Matrix{T} # residuals
-    Ω⁻¹R             :: Matrix{T}
-    xtx              :: Matrix{T} # Gram matrix X'X
-    xty              :: Matrix{T} # X'Y
-    storage_d        :: Vector{T}
-    storage_nd_1     :: Vector{T}
-    storage_nd_2     :: Vector{T}
-    storage_nd_3     :: Vector{T}
-    storage_pd       :: Vector{T}
-    storage_n_d_1    :: Matrix{T}
-    storage_n_d_2    :: Matrix{T}
-    storage_n_d_3    :: Matrix{T}
-    storage_n_p      :: Matrix{T}
-    storage_p_d      :: Matrix{T}
-    storage_d_d_1    :: Matrix{T}
-    storage_d_d_2    :: Matrix{T}
-    storage_d_d_3    :: Matrix{T}
-    storage_d_d_4    :: Matrix{T}
-    storage_d_d_5    :: Matrix{T}
-    storage_d_d_6    :: Matrix{T}
-    storage_d_d_7    :: Matrix{T}
-    storage_p_p      :: Matrix{T}
-    storage_nd_nd    :: Matrix{T}
-    storage_pd_pd    :: Matrix{T}
-    storages_nd_nd   :: Vector{Matrix{T}}
-    Bcov             :: Matrix{T}
-    Σcov             :: Matrix{T}
-    logl             :: Vector{T}
+    RtVR                  :: Vector{Matrix{T}}
+    storages_d_d          :: Vector{Matrix{T}}
+    V_sqnorm              :: Matrix{T}
+    V_rank                :: Vector{Int}
+    R                     :: Matrix{T} # residuals
+    Ω⁻¹R                  :: Matrix{T}
+    xtx                   :: Matrix{T} # Gram matrix X'X
+    xty                   :: Matrix{T} # X'Y
+    storage_d             :: Vector{T}
+    storage_nd_1          :: Vector{T}
+    storage_nd_2          :: Vector{T}
+    storage_nd_3          :: Vector{T}
+    storage_nd_pd_plus1_1 :: Matrix{T}
+    storage_nd_pd_plus1_2 :: Matrix{T}
+    storage_nd_pd_plus1_3 :: Matrix{T}
+    storage_nd_pd_plus1_4 :: Matrix{T}
+    storage_pd_plus1_pd_plus1 :: Matrix{T}
+    𝒜                     :: Matrix{T}
+    ℬ                     :: Matrix{T}
+    storage_pd            :: Vector{T}
+    storage_n_d_1         :: Matrix{T}
+    storage_n_d_2         :: Matrix{T}
+    storage_n_d_3         :: Matrix{T}
+    storage_n_p           :: Matrix{T}
+    storage_p_d           :: Matrix{T}
+    storage_d_d_1         :: Matrix{T}
+    storage_d_d_2         :: Matrix{T}
+    storage_d_d_3         :: Matrix{T}
+    storage_d_d_4         :: Matrix{T}
+    storage_d_d_5         :: Matrix{T}
+    storage_d_d_6         :: Matrix{T}
+    storage_d_d_7         :: Matrix{T}
+    storage_p_p           :: Matrix{T}
+    storage_nd_nd         :: Matrix{T}
+    storage_pd_pd         :: Matrix{T}
+    storages_nd_nd        :: Vector{Matrix{T}}
+    Bcov                  :: Matrix{T}
+    Σcov                  :: Matrix{T}
+    logl                  :: Vector{T}
 end
 
 # constructor
@@ -91,6 +98,13 @@ function MultiResponseVarianceComponentModel(
     storage_nd_1     = Vector{T}(undef, nd)
     storage_nd_2     = Vector{T}(undef, nd)
     storage_nd_3     = Vector{T}(undef, nd)
+    storage_nd_pd_plus1_1 = Matrix{T}(undef, n * d, p * d + 1)
+    storage_nd_pd_plus1_2 = Matrix{T}(undef, n * d, p * d + 1)
+    storage_nd_pd_plus1_3 = Matrix{T}(undef, n * d, p * d + 1)
+    storage_nd_pd_plus1_4 = Matrix{T}(undef, n * d, p * d + 1)
+    storage_pd_plus1_pd_plus1 = Matrix{T}(undef, p * d + 1, p * d + 1)
+    𝒜                         = Matrix{T}(undef, p * d + 1, p * d + 1)
+    ℬ                         = Matrix{T}(undef, p * d + 1, p * d + 1)
     storage_pd       = Vector{T}(undef, pd)
     storage_n_d_1    = Matrix{T}(undef, n, d)
     storage_n_d_2    = Matrix{T}(undef, n, d)
@@ -116,7 +130,12 @@ function MultiResponseVarianceComponentModel(
         B, VarComp, Ω, Σ_rank, 
         RtVR, storages_d_d, V_sqnorm, V_rank,
         R, Ω⁻¹R, xtx, xty,
-        storage_d, storage_nd_1, storage_nd_2, storage_nd_3, storage_pd,
+        storage_d, storage_nd_1, storage_nd_2, storage_nd_3,
+        storage_nd_pd_plus1_1, 
+        storage_nd_pd_plus1_2, 
+        storage_nd_pd_plus1_3, 
+        storage_nd_pd_plus1_4,
+        storage_pd_plus1_pd_plus1, 𝒜, ℬ, storage_pd,
         storage_n_d_1, storage_n_d_2, storage_n_d_3,
         storage_n_p, storage_p_d,
         storage_d_d_1, storage_d_d_2, storage_d_d_3, 
@@ -618,6 +637,45 @@ function update_B!(
     # update residuals R
     update_res!(model)
     model.B
+end
+
+"""
+    _update_B!(model::MultiResponseVarianceComponentModel)
+
+Update the regression coefficients `model.B`, assuming the conjugate gradient
+solution to `Ω⁻¹[vec(Y) (I ⊗ X)]` is stored at `model.storage_nd_pd_plus1_1`
+"""
+function _update_B!(
+    model :: MultiResponseVarianceComponentModel{T}
+    ) where T <: BlasReal
+    pd_plus1 = size(model.storage_nd_pd_plus1_1, 2)
+    # Apply Level-3 BLAS to do matrix-matrix products
+    # instead of matrix-vector products, makes it hard to parallize because of 
+    # shared storage model.storage_n_d_1
+    @inbounds for j in 2:pd_plus1
+        # for i in 1:d
+        #     startidx = (i - 1) * n + 1
+        #     endidx   = i * n
+        #     mul!(view(model.storage_pd_pd, ((i - 1) * p + 1):(i * p), j - 1),
+        #          transpose(model.X),
+        #          view(model.storage_nd_pd_plus1_1, startidx:endidx, j))
+        # end
+        copyto!(model.storage_n_d_1, view(model.storage_nd_pd_plus1_1, :, j))
+        mul!(model.storage_p_d, transpose(model.X), model.storage_n_d_1)
+        copyto!(view(model.storage_pd_pd, :, j - 1), model.storage_p_d)
+    end
+    _, info = LAPACK.potrf!('L', model.storage_pd_pd)
+    info > 0 && throw("Hessian wrt fixed effects is rank deficient")
+    # Evaluate (I ⊗ X)ᵀ [Ω⁻¹ vec(Y)]
+    copyto!(model.storage_n_d_1, view(model.storage_nd_pd_plus1_1, :, 1))
+    mul!(model.storage_p_d, transpose(model.X), model.storage_n_d_1)
+    copyto!(model.storage_pd, model.storage_p_d)
+    # Update Fixed Effects
+    LAPACK.potrs!('L', model.storage_pd_pd, model.storage_pd)
+    copyto!(model.B, model.storage_pd)
+    # update residuals R
+    update_res!(model)
+    return model.B
 end
 
 """
