@@ -78,11 +78,10 @@ function project_null(
         Ỹ = A' * Y
         Ṽ = Vector{Matrix{T}}(undef, m)
         storage = zeros(n, s)
-        for i in 1:(m - 1)
+        for i in 1:m
             mul!(storage, V[i], A)
             Ṽ[i] = BLAS.gemm('T', 'N', A, storage)
         end 
-        Ṽ[end] = Matrix{T}(I, s, s)
         Ỹ, Ṽ, A
     end 
 end

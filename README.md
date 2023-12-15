@@ -46,9 +46,9 @@ end
 Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
 # maximum likelihood estimation
 model = MRVC(Y, X, V)
-@time fit!(model, verbose = true) # ~ 30 seconds
+@timev fit!(model, verbose = true) # ~ 30 seconds
 # residual maximum likelihood estimation
-@time fit!(model, reml = true, verbose = true)
+@timev fit!(model, reml = true, verbose = true)
 
 model.Σ
 reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
