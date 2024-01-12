@@ -139,12 +139,22 @@ MultiResponseVarianceComponentModel(Y, V::AbstractMatrix) =
 function Base.show(io::IO, model::MultiResponseVarianceComponentModel)
     n, d, p, m = size(model.Y, 1), size(model.Y, 2), size(model.X, 2), length(model.V)
     if d == 1
-        print(io, "A univariate response model (n = $n, p = $p, m = $m)")
+        printstyled(io, "A univariate response variance component model\n"; underline = true)
+    elseif d == 2
+        printstyled(io, "A bivariate response variance component model\n"; underline = true)
     else
-        print(io, "A multivariate response model (n = $n, d = $d, p = $p, m = $m)")
+        printstyled(io, "A multivariate response variance component model\n"; underline = true)
     end
+    print(io, "   * number of responses: ")
+    printstyled(io, "$d\n"; color = :yellow)
+    print(io, "   * number of observations: ")
+    printstyled(io, "$n\n"; color = :yellow)
+    print(io, "   * number of fixed effects: ")
+    printstyled(io, "$p\n"; color = :yellow)
+    print(io, "   * number of variance components: ")
+    printstyled(io, "$m"; color = :yellow)
 end
-    
+
 include("multivariate_calculus.jl")
 include("fit.jl")
 include("manopt.jl")

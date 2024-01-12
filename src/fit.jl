@@ -34,14 +34,13 @@ function fit!(
     Y, X, V = model.Y, model.X, model.V
     # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
-    @info "n = $n, d = $d, p = $p, m = $m"
     if reml
         Ỹ, Ṽ, _ = project_null(model.Y, model.X, model.V)
         modelf = MultiResponseVarianceComponentModel(Ỹ, Ṽ)
-        @info "running $(algo) algorithm for REML estimation"
+        @info "Running $(algo) algorithm for REML estimation"
     else
         modelf = model
-        @info "running $(algo) algorithm for ML estimation"
+        @info "Running $(algo) algorithm for ML estimation"
     end
     # record iterate history if requested
     history          = ConvergenceHistory(partial = !log)
@@ -100,15 +99,15 @@ function fit!(
         push!(history, :logl    , logl)
         push!(history, :itertime, toc - tic)
         if iter == maxiter
-            @warn "maximum number of iterations $maxiter is reached."
+            @warn "Maximum number of iterations $maxiter is reached."
             break
         end
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)
-            @info "updates converged!"
+            @info "Updates converged!"
             copyto!(modelf.logl, logl)
             IterativeSolvers.setconv(history, true)
             if se
-                @info "calculating standard errors"
+                @info "Calculating standard errors"
                 fisher_B!(modelf)
                 fisher_Σ!(modelf)
             end
