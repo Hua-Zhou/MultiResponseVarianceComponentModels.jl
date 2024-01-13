@@ -21,11 +21,11 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     V                :: Vector{Matrix{T}}
     # parameters
     B                :: Matrix{T}
-    Γ                :: Vector{Matrix{T}}
-    Ψ                :: Matrix{T}
     Σ                :: Vector{Matrix{T}}
     Ω                :: Matrix{T} # covariance Ω = Σ[1] ⊗ V[1] + ... + Σ[m] ⊗ V[m]
-    Σ_rank           :: Vector{Int}
+    Γ                :: Vector{Matrix{T}} # for manopt.jl
+    Ψ                :: Matrix{T} # for manopt.jl
+    Σ_rank           :: Vector{Int} # for manopt.jl
     # working arrays
     V_rank           :: Vector{Int}
     R                :: Matrix{T} # residuals
@@ -92,21 +92,21 @@ function MultiResponseVarianceComponentModel(
     storage_d_d_1    = Matrix{T}(undef, d, d)
     storage_d_d_2    = Matrix{T}(undef, d, d)
     storage_d_d_3    = Matrix{T}(undef, d, d)
-    storage_d_d_4    = Matrix{T}(undef, d, d)
-    storage_d_d_5    = Matrix{T}(undef, d, d)
-    storage_d_d_6    = Matrix{T}(undef, d, d)
-    storage_d_d_7    = Matrix{T}(undef, d, d)
+    storage_d_d_4    = Matrix{T}(undef, d, d) # for manopt.jl
+    storage_d_d_5    = Matrix{T}(undef, d, d) # for manopt.jl
+    storage_d_d_6    = Matrix{T}(undef, d, d) # for manopt.jl
+    storage_d_d_7    = Matrix{T}(undef, d, d) # for manopt.jl
     storage_p_p      = Matrix{T}(undef, p, p)
     storage_nd_nd    = Matrix{T}(undef, nd, nd)
     storage_pd_pd    = Matrix{T}(undef, pd, pd)
-    storages_nd_nd   = [Matrix{T}(undef, nd, nd) for _ in 1:m]
-    Bcov             = Matrix{T}(undef, pd, pd)
-    Σcov             = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d))
+    storages_nd_nd   = [Matrix{T}(undef, nd, nd) for _ in 1:m] # for fisher_Σ!
+    Bcov             = Matrix{T}(undef, pd, pd) # for fisher_B!
+    Σcov             = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d)) # for fisher_Σ!
     logl             = zeros(T, 1)
     MultiResponseVarianceComponentModel{T}(
         Y, Xmat, V,
-        B, Γ, Ψ, Σ, Ω, Σ_rank, V_rank,
-        R, Ω⁻¹R, xtx, xty,
+        B, Σ, Ω, Γ, Ψ, Σ_rank,
+        V_rank, R, Ω⁻¹R, xtx, xty,
         storage_nd_1, storage_nd_2, storage_pd,
         storage_n_d, storage_n_p, storage_p_d,
         storage_d_d_1, storage_d_d_2, storage_d_d_3, 
