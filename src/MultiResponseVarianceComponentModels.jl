@@ -42,16 +42,16 @@ struct MultiResponseVarianceComponentModel{T <: BlasReal}
     storage_d_d_1    :: Matrix{T}
     storage_d_d_2    :: Matrix{T}
     storage_d_d_3    :: Matrix{T}
-    storage_d_d_4    :: Matrix{T}
-    storage_d_d_5    :: Matrix{T}
-    storage_d_d_6    :: Matrix{T}
-    storage_d_d_7    :: Matrix{T}
+    storage_d_d_4    :: Matrix{T} # for manopt.jl
+    storage_d_d_5    :: Matrix{T} # for manopt.jl
+    storage_d_d_6    :: Matrix{T} # for manopt.jl
+    storage_d_d_7    :: Matrix{T} # for manopt.jl
     storage_p_p      :: Matrix{T}
     storage_nd_nd    :: Matrix{T}
     storage_pd_pd    :: Matrix{T}
-    storages_nd_nd   :: Vector{Matrix{T}}
-    Bcov             :: Matrix{T}
-    Σcov             :: Matrix{T}
+    storages_nd_nd   :: Vector{Matrix{T}} # for fisher_Σ!
+    Bcov             :: Matrix{T} # for fisher_B!
+    Σcov             :: Matrix{T} # for fisher_Σ!
     logl             :: Vector{T}
 end
 
@@ -93,16 +93,16 @@ function MultiResponseVarianceComponentModel(
     storage_d_d_1    = Matrix{T}(undef, d, d)
     storage_d_d_2    = Matrix{T}(undef, d, d)
     storage_d_d_3    = Matrix{T}(undef, d, d)
-    storage_d_d_4    = Matrix{T}(undef, d, d) # for manopt.jl
-    storage_d_d_5    = Matrix{T}(undef, d, d) # for manopt.jl
-    storage_d_d_6    = Matrix{T}(undef, d, d) # for manopt.jl
-    storage_d_d_7    = Matrix{T}(undef, d, d) # for manopt.jl
+    storage_d_d_4    = Matrix{T}(undef, d, d)
+    storage_d_d_5    = Matrix{T}(undef, d, d)
+    storage_d_d_6    = Matrix{T}(undef, d, d)
+    storage_d_d_7    = Matrix{T}(undef, d, d) 
     storage_p_p      = Matrix{T}(undef, p, p)
     storage_nd_nd    = Matrix{T}(undef, nd, nd)
     storage_pd_pd    = Matrix{T}(undef, pd, pd)
-    storages_nd_nd   = [Matrix{T}(undef, nd, nd) for _ in 1:m] # for fisher_Σ!
-    Bcov             = Matrix{T}(undef, pd, pd) # for fisher_B!
-    Σcov             = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d)) # for fisher_Σ!
+    storages_nd_nd   = [Matrix{T}(undef, nd, nd) for _ in 1:m]
+    Bcov             = Matrix{T}(undef, pd, pd)
+    Σcov             = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d))
     logl             = zeros(T, 1)
     MultiResponseVarianceComponentModel{T}(
         Y, Xmat, V,

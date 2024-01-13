@@ -1,3 +1,4 @@
 Manifest.toml
 *.jl.*.mem
 .DS_Store
+docs/build
