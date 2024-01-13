@@ -7,6 +7,7 @@ export fit!,
     kron_reduction!, 
     loglikelihood!,
     MultiResponseVarianceComponentModel,
+    MRVCModel,
     update_res!,
     update_Ω!,
     fisher_Σ!,
@@ -115,26 +116,25 @@ function MultiResponseVarianceComponentModel(
         storages_nd_nd, Bcov, Σcov, logl)
 end
 
-MultiResponseVarianceComponentModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}) = 
-    MultiResponseVarianceComponentModel(Y, reshape(x, length(x), 1), V)
+const MRVCModel = MultiResponseVarianceComponentModel
 
-MultiResponseVarianceComponentModel(y::AbstractVector, X::AbstractMatrix, V::Vector{<:AbstractMatrix}) = 
-    MultiResponseVarianceComponentModel(reshape(y, length(y), 1), X, V)
+MRVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}) = 
+    MRVCModel(Y, reshape(x, length(x), 1), V)
 
-MultiResponseVarianceComponentModel(y::AbstractVector, x::AbstractVector, V::Vector{<:AbstractMatrix}) = 
-    MultiResponseVarianceComponentModel(reshape(y, length(y), 1), reshape(x, length(x), 1), V)
+MRVCModel(y::AbstractVector, X::AbstractMatrix, V::Vector{<:AbstractMatrix}) = 
+    MRVCModel(reshape(y, length(y), 1), X, V)
 
-MultiResponseVarianceComponentModel(Y::AbstractMatrix, V::Vector{<:AbstractMatrix}) = 
-    MultiResponseVarianceComponentModel(Y, nothing, V)
+MRVCModel(y::AbstractVector, x::AbstractVector, V::Vector{<:AbstractMatrix}) = 
+    MRVCModel(reshape(y, length(y), 1), reshape(x, length(x), 1), V)
 
-MultiResponseVarianceComponentModel(y::AbstractVector, V::Vector{<:AbstractMatrix}) = 
-    MultiResponseVarianceComponentModel(reshape(y, length(y), 1), nothing, V)
+MRVCModel(Y::AbstractMatrix, V::Vector{<:AbstractMatrix}) = MRVCModel(Y, nothing, V)
 
-MultiResponseVarianceComponentModel(Y, X, V::AbstractMatrix) =
-    MultiResponseVarianceComponentModel(Y, X, [V])
+MRVCModel(y::AbstractVector, V::Vector{<:AbstractMatrix}) = 
+    MRVCModel(reshape(y, length(y), 1), nothing, V)
 
-MultiResponseVarianceComponentModel(Y, V::AbstractMatrix) =
-    MultiResponseVarianceComponentModel(Y, [V])
+MRVCModel(Y, X, V::AbstractMatrix) = MRVCModel(Y, X, [V])
+
+MRVCModel(Y, V::AbstractMatrix) = MRVCModel(Y, [V])
 
 function Base.show(io::IO, model::MultiResponseVarianceComponentModel)
     n, d, p, m = size(model.Y, 1), size(model.Y, 2), size(model.X, 2), length(model.V)

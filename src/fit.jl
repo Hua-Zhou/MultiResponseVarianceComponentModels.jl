@@ -55,7 +55,7 @@ function fit!(
             # estimate fixed effect coefficients B by ordinary least squares (Cholesky solve)
             copyto!(modelf.storage_p_p, modelf.xtx)
             _, info = LAPACK.potrf!('U', modelf.storage_p_p)
-            info > 0 && throw("design matrix X is rank deficient")
+            info > 0 && throw("Design matrix X is rank deficient")
             LAPACK.potrs!('U', modelf.storage_p_p, copyto!(modelf.B, modelf.xty))
             # update residuals R
             update_res!(modelf)
@@ -75,7 +75,7 @@ function fit!(
         if p > 0; update_res!(modelf); else copy!(modelf.R, Y); end
         update_Ω!(modelf)
     else
-        throw("unrecognize initialization method $init")
+        throw("Cannot recognize initialization method $init")
     end
     logl = loglikelihood!(modelf)
     toc = time()
@@ -122,7 +122,7 @@ function fit!(
         copyto!(model.storage_nd_nd, model.Ω)
         # Cholesky of covariance Ω = U'U
         _, info = LAPACK.potrf!('U', model.storage_nd_nd)
-        info > 0 && throw("covariance matrix Ω is singular")
+        info > 0 && throw("Covariance matrix Ω is singular")
         LAPACK.potri!('U', model.storage_nd_nd)
         copytri!(model.storage_nd_nd, 'U')
         update_B!(model)
@@ -177,7 +177,7 @@ function update_Σk!(
     kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
     # lower Cholesky factor L of gradient
     _, info = LAPACK.potrf!('L', model.storage_d_d_1)
-    info > 0 && throw("gradient of Σ[$k] is singular")
+    info > 0 && throw("Gradient of Σ[$k] is singular")
     # storage_d_d_2 = L' * Σ[k] * (R' * V[k] * R) * Σ[k] * L
     mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
     mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
@@ -295,7 +295,7 @@ function loglikelihood!(
     copyto!(model.storage_nd_nd, model.Ω)
     # Cholesky of covariance Ω = U'U
     _, info = LAPACK.potrf!('U', model.storage_nd_nd)
-    info > 0 && throw("covariance matrix Ω is singular")
+    info > 0 && throw("Covariance matrix Ω is singular")
     # storage_nd = U' \ vec(R)
     copyto!(model.storage_nd_1, model.R)
     BLAS.trsv!('U', 'T', 'N', model.storage_nd_nd, model.storage_nd_1)

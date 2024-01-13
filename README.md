@@ -21,7 +21,6 @@ pkg> add https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl.git
 ## Examples
 ```julia
 using MultiResponseVarianceComponentModels, LinearAlgebra, Random
-const MRVC = MultiResponseVarianceComponentModel
 # simulation
 Random.seed!(1234)
 n = 1_000  # n of observations
@@ -45,7 +44,7 @@ end
 Ωchol = cholesky(Ω)
 Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
 # maximum likelihood estimation
-model = MRVC(Y, X, V)
+model = MRVCModel(Y, X, V)
 @timev fit!(model, verbose = true) # ~ 30 seconds
 # residual maximum likelihood estimation
 @timev fit!(model, reml = true, verbose = true)
