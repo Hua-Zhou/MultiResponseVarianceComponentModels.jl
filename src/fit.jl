@@ -127,7 +127,7 @@ function fit!(
         copytri!(model.storage_nd_nd, 'U')
         update_B!(model)
         copyto!(model.logl, loglikelihood!(model))
-        se ? fisher_B!(modelf) : nothing
+        se ? fisher_B!(model) : nothing
     end
     log && IterativeSolvers.shrink!(history)
     return history
