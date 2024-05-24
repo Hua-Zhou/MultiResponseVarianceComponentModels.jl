@@ -74,3 +74,10 @@ model.Bcov_reml
 sqrt.(diag(model.Σcov))
 sqrt.(diag(model.Bcov_reml))
 ```
+
+# Estimation only
+Calculating standard errors can be memory-demending, so you could instead forego such calculation via:
+```julia
+model = MRVCModel(Y, X, V; se = false) # or model = MRVCModel(Y, X, V; se = false, reml = true)
+@timev fit!(model)
+```

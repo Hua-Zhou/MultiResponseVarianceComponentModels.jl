@@ -1,3 +1,8 @@
+"""
+`MultiResponseVarianceComponentModels.jl` or `MRVCModels.jl` permits (residual) maximum 
+likelihod estimation and inference for multivariate response variance components 
+linear mixed models.
+"""
 module MultiResponseVarianceComponentModels
 
 using IterativeSolvers, LinearAlgebra, Manopt, Manifolds, Distributions
@@ -83,10 +88,19 @@ struct MRVCModel{T <: BlasReal}
     reml               :: Bool
 end
 
-# constructor
+"""
+    MRVCModel(Y::AbstractMatrix, X::Union{Nothing, AbstractMatrix}, V::Vector{<:AbstractMatrix})
+
+Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`, 
+and kernel matrices `V`.
+
+# Keyword arguments
+- `se::Bool`   : calculate standard errors. Default is `true`.
+- `reml::Bool` : REML instead of ML estimation. Default is `false`.
+"""
 function MRVCModel(
     Y :: AbstractMatrix{T},
-    X :: Union{Nothing, Matrix{T}},
+    X :: Union{Nothing, AbstractMatrix{T}},
     V :: Vector{<:AbstractMatrix{T}};
     Σ_rank :: Vector{<:Integer} = fill(size(Y, 2), length(V)),
     se :: Bool = true,
