@@ -1,12 +1,12 @@
 """
-    lrt(model1::MultiResponseVarianceComponentModel, model0::MultiResponseVarianceComponentModel)
+    lrt(model1::MRVCModel, model0::MRVCModel)
 
 Perform a variation of the likelihood ratio test for univariate variance components models as in 
 Molenberghs and Verbeke 2007 with model1 and model0 being the full and nested models, respectively.
 """
 function lrt(
-    model1 :: MultiResponseVarianceComponentModel,
-    model0 :: MultiResponseVarianceComponentModel
+    model1 :: MRVCModel,
+    model0 :: MRVCModel
     )
     df = length(model1.V) - length(model0.V)
     @assert df > 0
@@ -19,14 +19,14 @@ function lrt(
 end
 
 """
-    h2(model::MultiResponseVarianceComponentModel)
+    h2(model::MRVCModel)
 
 Calculate heritability estimates and their standard errors, assuming that all variance components 
 capture genetic effects except the last term. Also returns total heritability and its standard error
 from sum of individual contributions.
 """
 function h2(
-    model :: MultiResponseVarianceComponentModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     m, d = length(model.Σ), size(model.Σ[1], 1)
     h2s  = zeros(T, m, d)
@@ -65,12 +65,12 @@ function findvar(d::Int)
 end
 
 """
-    rg(model::MultiResponseVarianceComponentModel)
+    rg(model::MRVCModel)
 
 Calculate genetic/residual correlation estimates and their standard errors.
 """
 function rg(
-    model :: MultiResponseVarianceComponentModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     m, d = length(model.Σ), size(model.Σ[1], 1)
     @assert d > 1

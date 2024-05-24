@@ -4,7 +4,7 @@ using MultiResponseVarianceComponentModels
 using BenchmarkTools, LinearAlgebra, Profile, Random, StatsBase, Test
 import LinearAlgebra: copytri!
 
-const MRVC = MultiResponseVarianceComponentModels
+const MRVCModels = MultiResponseVarianceComponentModels
 
 rng = MersenneTwister(123)
 
@@ -34,7 +34,72 @@ end
 y = vec(X * B_true) + cholesky(Symmetric(Ω_true)).L * randn(rng, n * d)
 Y = reshape(y, n, d)
 
-mrvc = MultiResponseVarianceComponentModel(Y, X, V)
+model = MRVCModel(Y, X, V)
+modelr = MRVCModel(Y, X, V; reml = true)
+
+@testset "fit! (full rank) by MLE with MM" begin
+    @time history = MRVCModels.fit!(model, algo = :MM, maxiter = 100)
+    println("B_true:")
+    display(B_true)
+    println()
+    println("B̂:")
+    display(model.B)
+    println()
+    for k in 1:m
+        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - model.Σ[k]))")
+        println()
+    end
+    display(history)
+    println()
+end
+
+@testset "fit! (full rank) by MLE with EM" begin
+    @time history = MRVCModels.fit!(model, algo = :EM, maxiter = 100)
+    println("B_true:")
+    display(B_true)
+    println()
+    println("B̂:")
+    display(model.B)
+    println()
+    for k in 1:m
+        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - model.Σ[k]))")
+        println()
+    end
+    display(history)
+    println()
+end
+
+@testset "fit! (full rank) by REML with MM" begin
+    @time history = MRVCModels.fit!(modelr, algo = :MM, maxiter = 100)
+    println("B_true:")
+    display(B_true)
+    println()
+    println("B̂:")
+    display(modelr.B_reml)
+    println()
+    for k in 1:m
+        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - modelr.Σ[k]))")
+        println()
+    end
+    display(history)
+    println()
+end
+
+@testset "fit! (full rank) by REML with EM" begin
+    @time history = MRVCModels.fit!(modelr, algo = :EM, maxiter = 100)
+    println("B_true:")
+    display(B_true)
+    println()
+    println("B̂:")
+    display(modelr.B_reml)
+    println()
+    for k in 1:m
+        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - modelr.Σ[k]))")
+        println()
+    end
+    display(history)
+    println()
+end
 
 # @testset "log-likelihood at the truth" begin
 #     copyto!(mrvc.B, B_true)
@@ -82,38 +147,6 @@ mrvc = MultiResponseVarianceComponentModel(Y, X, V)
 #     # bm = @benchmark MRVC.update_Σk!($mrvc, 1, d)
 #     # display(bm); println()
 # end
-
-@testset "fit! (full rank) by MM" begin
-    @time hist = MRVC.fit!(mrvc, verbose = true, algo = :MM, maxiter = 100)
-    println("B_true:")
-    display(B_true)
-    println()
-    println("B̂:")
-    display(mrvc.B)
-    println()
-    for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.Σ[k]))")
-        println()
-    end
-    display(hist)
-    println()
-end
-
-@testset "fit! (full rank) by EM" begin
-    @time hist = MRVC.fit!(mrvc, verbose = true, algo = :EM, maxiter = 100)
-    println("B_true:")
-    display(B_true)
-    println()
-    println("B̂:")
-    display(mrvc.B)
-    println()
-    for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - mrvc.Σ[k]))")
-        println()
-    end
-    display(hist)
-    println()
-end
 
 # @testset "fit! (low rank)" begin
 #     # rank 1 for Σ[1], ..., Σ[m-1], rank d for Σ[m]

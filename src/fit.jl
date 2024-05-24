@@ -1,45 +1,38 @@
 """
-    fit!(model::MultiResponseVarianceComponentModel)
+    fit!(model::MRVCModel)
 
 Fit a multivariate response variance component model by an MM or EM algorithm.
 
 # Positional arguments
-- `model`            : a `MultiResponseVarianceComponentModel` instance.  
+- `model`            : a `MRVCModel` instance.  
 
 # Keyword arguments
 - `maxiter::Integer` : maximum number of iterations. Default is `1000`.
 - `reltol::Real`     : relative tolerance for convergence. Default is `1e-6`.
-- `verbose::Bool`    : display algorithmic information. Default is `false`.
+- `verbose::Bool`    : display algorithmic information. Default is `true`.
 - `init::Symbol`     : initialization strategy. `:default` initialize by least squares.
     `:user` uses user supplied value at `model.B` and `model.Σ`.
 - `algo::Symbol`     : optimization algorithm. `:MM` (default) or `EM`.
 - `log::Bool`        : record iterate history or not. Defaut is `false`.
-- `reml::Bool`       : REML instead of ML estimation. Default is `false`.
-- `se::Bool`         : calculate standard errors. Default is `true`.
 
 # Output
 - `history`          : iterate history.
 """
 function fit!(
-    model   :: MultiResponseVarianceComponentModel{T};
+    model   :: MRVCModel{T};
     maxiter :: Integer = 1000,
     reltol  :: Real = 1e-6,
-    verbose :: Bool = false,
+    verbose :: Bool = true,
     init    :: Symbol = :default, # :default or :user
     algo    :: Symbol  = :MM,
     log     :: Bool = false,
-    reml    :: Bool = false,
-    se      :: Bool = true
     ) where T <: BlasReal
     Y, X, V = model.Y, model.X, model.V
     # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
-    if reml
-        Ỹ, Ṽ, _ = project_null(model.Y, model.X, model.V)
-        modelf = MultiResponseVarianceComponentModel(Ỹ, Ṽ)
+    if model.reml
         @info "Running $(algo) algorithm for REML estimation"
     else
-        modelf = model
         @info "Running $(algo) algorithm for ML estimation"
     end
     # record iterate history if requested
@@ -53,31 +46,31 @@ function fit!(
     if init == :default
         if p > 0
             # estimate fixed effect coefficients B by ordinary least squares (Cholesky solve)
-            copyto!(modelf.storage_p_p, modelf.xtx)
-            _, info = LAPACK.potrf!('U', modelf.storage_p_p)
+            copyto!(model.storage_p_p, model.xtx)
+            _, info = LAPACK.potrf!('U', model.storage_p_p)
             info > 0 && throw("Design matrix X is rank deficient")
-            LAPACK.potrs!('U', modelf.storage_p_p, copyto!(modelf.B, modelf.xty))
+            LAPACK.potrs!('U', model.storage_p_p, copyto!(model.B, model.xty))
             # update residuals R
-            update_res!(modelf)
+            update_res!(model)
         else
             # no fixed effects
-            copy!(modelf.R, Y)
+            copy!(model.R, Y)
         end
         # initialization of variance components Σ[1], ..., Σ[m]
         # If R is MatrixNormal(0, Vi, Σi), i.e., vec(R) is Normal(0, Σi⊗Vi),
         # then E(R'R) = tr(Vi) * Σi. So we estimate Σi by R'R / tr(Vi)
-        mul!(modelf.storage_d_d_1, transpose(modelf.R), modelf.R)
+        mul!(model.storage_d_d_1, transpose(model.R), model.R)
         for k in 1:m
-            modelf.Σ[k] .= inv(tr(modelf.V[k])) .* modelf.storage_d_d_1
+            model.Σ[k] .= inv(tr(model.V[k])) .* model.storage_d_d_1
         end
-        update_Ω!(modelf)
+        update_Ω!(model)
     elseif init == :user
-        if p > 0; update_res!(modelf); else copy!(modelf.R, Y); end
-        update_Ω!(modelf)
+        if p > 0; update_res!(model); else copy!(model.R, Y); end
+        update_Ω!(model)
     else
         throw("Cannot recognize initialization method $init")
     end
-    logl = loglikelihood!(modelf)
+    logl = loglikelihood!(model)
     toc = time()
     verbose && println("iter = 0, logl = $logl")
     IterativeSolvers.nextiter!(history)
@@ -89,58 +82,56 @@ function fit!(
         IterativeSolvers.nextiter!(history)
         tic = time()
         # initial estiamte of Σ can be lousy, so we update Σ first in the 1st round
-        p > 0 && iter > 1 && update_B!(modelf)
-        update_Σ!(modelf, algo = algo)
+        p > 0 && iter > 1 && update_B!(model)
+        update_Σ!(model, algo = algo)
         logl_prev = logl
-        logl = loglikelihood!(modelf)
+        logl = loglikelihood!(model)
         toc = time()
         verbose && println("iter = $iter, logl = $logl")
         push!(history, :iter    , iter)
         push!(history, :logl    , logl)
         push!(history, :itertime, toc - tic)
         if iter == maxiter
-            @warn "Maximum number of iterations $maxiter is reached."
+            @warn "Maximum number of iterations $maxiter is reached"
             break
         end
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)
             @info "Updates converged!"
-            copyto!(modelf.logl, logl)
+            copyto!(model.logl, logl)
             IterativeSolvers.setconv(history, true)
-            if se
+            if model.se
                 @info "Calculating standard errors"
-                fisher_B!(modelf)
-                fisher_Σ!(modelf)
+                fisher_B!(model)
+                fisher_Σ!(model)
             end
             break
         end
     end
-    if reml
-        copy!(model.Σ, modelf.Σ)
-        copyto!(model.Σcov, modelf.Σcov)
-        update_Ω!(model)
-        # need Ω⁻¹ for B 
-        copyto!(model.storage_nd_nd, model.Ω)
+    if model.reml
+        update_Ω_reml!(model)
+        # need Ω⁻¹ for B
+        copyto!(model.storage_nd_nd_reml, model.Ω_reml)
         # Cholesky of covariance Ω = U'U
-        _, info = LAPACK.potrf!('U', model.storage_nd_nd)
+        _, info = LAPACK.potrf!('U', model.storage_nd_nd_reml)
         info > 0 && throw("Covariance matrix Ω is singular")
-        LAPACK.potri!('U', model.storage_nd_nd)
-        copytri!(model.storage_nd_nd, 'U')
-        update_B!(model)
-        copyto!(model.logl, loglikelihood!(model))
-        se ? fisher_B!(model) : nothing
+        LAPACK.potri!('U', model.storage_nd_nd_reml)
+        copytri!(model.storage_nd_nd_reml, 'U')
+        update_B_reml!(model)
+        copyto!(model.logl_reml, loglikelihood_reml!(model))
+        model.se ? fisher_B_reml!(model) : nothing
     end
     log && IterativeSolvers.shrink!(history)
-    return history
+    history
 end
 
 """
-    update_Σ!(model::MultiResponseVarianceComponentModel)
+    update_Σ!(model::MRVCModel)
 
 Update the variance component parameters `model.Σ`, assuming inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function update_Σ!(
-    model :: MultiResponseVarianceComponentModel{T};
+    model :: MRVCModel{T};
     algo  :: Symbol = :MM
     ) where T <: BlasReal
     d = size(model.Y, 2)
@@ -161,14 +152,14 @@ function update_Σ!(
 end
 
 """
-    update_Σk!(model::MultiResponseVarianceComponentModel, k, Val(:MM))
+    update_Σk!(model::MRVCModel, k, Val(:MM))
 
 MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
 `model.Ω⁻¹R` precomputed.
 """
 function update_Σk!(
-    model :: MultiResponseVarianceComponentModel{T},
+    model :: MRVCModel{T},
     k     :: Integer,
           :: Val{:MM}
     ) where T <: BlasReal
@@ -208,14 +199,14 @@ function update_Σk!(
 end
 
 """
-    update_Σk!(model::MultiResponseVarianceComponentModel, k, Val(:EM))
+    update_Σk!(model::MRVCModel, k, Val(:EM))
 
 EM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
 `model.Ω⁻¹R` precomputed.
 """
 function update_Σk!(
-    model :: MultiResponseVarianceComponentModel{T},
+    model :: MRVCModel{T},
     k     :: Integer,
           :: Val{:EM}
     ) where T <: BlasReal
@@ -240,13 +231,13 @@ function update_Σk!(
 end
 
 """
-    update_B!(model::MultiResponseVarianceComponentModel)
+    update_B!(model::MRVCModel)
 
 Update the regression coefficients `model.B`, assuming inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function update_B!(
-    model :: MultiResponseVarianceComponentModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     Ω⁻¹ = model.storage_nd_nd
     G   = model.storage_pd_pd
@@ -281,8 +272,44 @@ function update_B!(
     model.B
 end
 
+function update_B_reml!(
+    model :: MRVCModel{T}
+    ) where T <: BlasReal
+    Ω⁻¹ = model.storage_nd_nd_reml
+    G   = model.storage_pd_pd_reml
+    # Gram matrix G = (Id⊗X')Ω⁻¹(Id⊗X) = (X'Ω⁻¹ᵢⱼX)ᵢⱼ, 1 ≤ i,j ≤ d
+    n, d, p = size(model.Y_reml, 1), size(model.Y_reml, 2), size(model.X_reml, 2)
+    for j in 1:d
+        Ωcidx = ((j - 1) * n + 1):(j * n)
+        Gcidx = ((j - 1) * p + 1):(j * p)
+        for i in 1:j
+            Ωridx = ((i - 1) * n + 1):(i * n)
+            Gridx = ((i - 1) * p + 1):(i * p)
+            Ω⁻¹ᵢⱼ = view(Ω⁻¹, Ωridx, Ωcidx)
+            Gᵢⱼ   = view(G  , Gridx, Gcidx)
+            mul!(model.storage_n_p_reml, Ω⁻¹ᵢⱼ, model.X_reml)
+            mul!(Gᵢⱼ, transpose(model.X_reml), model.storage_n_p_reml)
+        end
+    end
+    copytri!(G, 'U')
+    # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
+    copyto!(model.storage_nd_1_reml, model.Y_reml)
+    mul!(model.storage_nd_2_reml, model.storage_nd_nd_reml, model.storage_nd_1_reml)
+    copyto!(model.storage_n_d_reml, model.storage_nd_2_reml)
+    mul!(model.storage_p_d_reml, transpose(model.X_reml), model.storage_n_d_reml)
+    # Cholesky solve
+    _, info = LAPACK.potrf!('U', G)
+    info > 0 && throw("Gram matrix (Id⊗X')Ω⁻¹(Id⊗X) is singular")
+    copyto!(model.storage_pd_reml, model.storage_p_d_reml)
+    LAPACK.potrs!('U', G, model.storage_pd_reml)
+    copyto!(model.B_reml, model.storage_pd_reml)
+    # update residuals R
+    update_res_reml!(model)
+    model.B_reml
+end
+
 """
-    loglikelihood!(model::MultiResponseVarianceComponentModel)
+    loglikelihood!(model::MRVCModel)
 
 Overwrite `model.storage_nd_nd` by inverse of the covariance 
 matrix `model.Ω`, overwrite `model.storage_nd` by `U' \\ vec(model.R)`, and 
@@ -290,7 +317,7 @@ return the log-likelihood. This function assumes `model.Ω` and `model.R` are
 already updated according to `model.Σ` and `model.B`.
 """
 function loglikelihood!(
-    model::MultiResponseVarianceComponentModel{T}
+    model::MRVCModel{T}
     ) where T <: BlasReal
     copyto!(model.storage_nd_nd, model.Ω)
     # Cholesky of covariance Ω = U'U
@@ -310,16 +337,45 @@ function loglikelihood!(
     logl /= -2
 end
 
+function loglikelihood_reml!(
+    model::MRVCModel{T}
+    ) where T <: BlasReal
+    copyto!(model.storage_nd_nd_reml, model.Ω_reml)
+    # Cholesky of covariance Ω = U'U
+    _, info = LAPACK.potrf!('U', model.storage_nd_nd_reml)
+    info > 0 && throw("Covariance matrix Ω is singular")
+    # storage_nd = U' \ vec(R)
+    copyto!(model.storage_nd_1_reml, model.R_reml)
+    BLAS.trsv!('U', 'T', 'N', model.storage_nd_nd_reml, model.storage_nd_1_reml)
+    # assemble pieces for log-likelihood
+    logl = sum(abs2, model.storage_nd_1_reml) + length(model.storage_nd_1_reml) * log(2π)
+    @inbounds for i in 1:length(model.storage_nd_1_reml)
+        logl += 2log(model.storage_nd_nd_reml[i, i])
+    end
+    # Ω⁻¹ from upper cholesky factor
+    LAPACK.potri!('U', model.storage_nd_nd_reml)
+    copytri!(model.storage_nd_nd_reml, 'U')
+    logl /= -2
+end
+
 function update_res!(
-    model :: MultiResponseVarianceComponentModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     # update R = Y - X B
     BLAS.gemm!('N', 'N', -one(T), model.X, model.B, one(T), copyto!(model.R, model.Y))
     model.R
 end
 
+function update_res_reml!(
+    model :: MRVCModel{T}
+    ) where T <: BlasReal
+    # update R = Y - X B
+    BLAS.gemm!('N', 'N', -one(T), model.X_reml, model.B_reml, one(T), copyto!(model.R_reml, model.Y_reml))
+    model.R
+end
+
 function update_Ω!(
-    model :: MultiResponseVarianceComponentModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     fill!(model.Ω, zero(T))
     @inbounds for k in 1:length(model.V)
@@ -328,14 +384,24 @@ function update_Ω!(
     model.Ω
 end
 
+function update_Ω_reml!(
+    model :: MRVCModel{T}
+    ) where T <: BlasReal
+    fill!(model.Ω_reml, zero(T))
+    @inbounds for k in 1:length(model.V_reml)
+        kron_axpy!(model.Σ[k], model.V_reml[k], model.Ω_reml)
+    end
+    model.Ω_reml
+end
+
 """
-    fisher_B!(model::MultiResponseVarianceComponentModel)
+    fisher_B!(model::MRVCModel)
 
 Compute the sampling variance-covariance of regression coefficients `model.B`, 
 assuming inverse of covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function fisher_B!(
-    model :: MultiResponseVarianceComponentModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     Ω⁻¹ = model.storage_nd_nd
     G   = model.storage_pd_pd
@@ -357,14 +423,37 @@ function fisher_B!(
     copyto!(model.Bcov, pinv(G))
 end
 
+function fisher_B_reml!(
+    model :: MRVCModel{T}
+    ) where T <: BlasReal
+    Ω⁻¹ = model.storage_nd_nd_reml
+    G   = model.storage_pd_pd_reml
+    # Gram matrix G = (Id⊗X')Ω⁻¹(Id⊗X) = (X'Ω⁻¹ᵢⱼX)ᵢⱼ, 1 ≤ i,j ≤ d
+    n, d, p = size(model.Y_reml, 1), size(model.Y_reml, 2), size(model.X_reml, 2)
+    for j in 1:d
+        Ωcidx = ((j - 1) * n + 1):(j * n)
+        Gcidx = ((j - 1) * p + 1):(j * p)
+        for i in 1:j
+            Ωridx = ((i - 1) * n + 1):(i * n)
+            Gridx = ((i - 1) * p + 1):(i * p)
+            Ω⁻¹ᵢⱼ = view(Ω⁻¹, Ωridx, Ωcidx)
+            Gᵢⱼ   = view(G  , Gridx, Gcidx)
+            mul!(model.storage_n_p_reml, Ω⁻¹ᵢⱼ, model.X_reml)
+            mul!(Gᵢⱼ, transpose(model.X_reml), model.storage_n_p_reml)
+        end
+    end
+    copytri!(G, 'U')
+    copyto!(model.Bcov_reml, pinv(G))
+end
+
 """
-    fisher_Σ!(model::MultiResponseVarianceComponentModel)
+    fisher_Σ!(model::MRVCModel)
 
 Compute the sampling variance-covariance of variance component estimates `model.Σ`, 
 assuming inverse of covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function fisher_Σ!(
-    model :: MultiResponseVarianceComponentModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     Ω⁻¹ = model.storage_nd_nd
     n, d, m = size(model.Y, 1), size(model.Y, 2), length(model.V)

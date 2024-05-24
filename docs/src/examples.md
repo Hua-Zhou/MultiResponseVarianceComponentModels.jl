@@ -32,13 +32,8 @@ Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
 
 # Maximum likelihood estimation
 ```@repl 1
-model = MultiResponseVarianceComponentModel(Y, X, V)
-@timev fit!(model, verbose = true)
-```
-
-For residual maximum likelihood estimation, you can instead type:
-```julia
-@timev fit!(model, reml = true, verbose = true)
+model = MRVCModel(Y, X, V)
+@timev fit!(model)
 ```
 
 Then variance components and mean effects estimates can be accessed through
@@ -59,4 +54,23 @@ Corresponding standard error of these estimates are
 ```@repl 1
 sqrt.(diag(model.Σcov))
 sqrt.(diag(model.Bcov))
+```
+
+# Residual maximum likelihood estimation
+For REML estimation, you can instead:
+```@repl 1
+model = MRVCModel(Y, X, V; reml = true)
+@timev fit!(model)
+```
+
+Variance components and mean effects estimates and their standard errors can be accessed through:
+```@repl 1
+model.Σ
+model.B_reml
+hcat(vec(B), vec(model.B_reml))
+reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
+model.Σcov
+model.Bcov_reml
+sqrt.(diag(model.Σcov))
+sqrt.(diag(model.Bcov_reml))
 ```

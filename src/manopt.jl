@@ -11,7 +11,7 @@ covariance matrix `model.Ω` is available at `model.storage_nd_nd` and
 `model.Ω⁻¹R` precomputed.
 """
 function update_Σk!(
-    model :: MultiResponseVarianceComponentModel{T},
+    model :: MRVCModel{T},
     k     :: Integer,
     rk    :: Integer
     ) where T <: BlasReal
@@ -101,7 +101,7 @@ end
 # `model.Ω⁻¹R` precomputed.
 # """
 # function update_Γk!(
-#     model :: MultiResponseVarianceComponentModel{T},
+#     model :: MRVCModel{T},
 #     k     :: Integer
 #     ) where T <: BlasReal
 #     d, rk = size(model.Γ[k])
@@ -148,7 +148,7 @@ low rank structure for `model.Σ[k]`. Assumes covariance matrix `model.Ω` is
 available at `model.storage_nd_nd` and `model.Ω⁻¹R` precomputed.
 """
 function update_Γk!(
-    model :: MultiResponseVarianceComponentModel{T},
+    model :: MRVCModel{T},
     k     :: Integer
     ) where T <: BlasReal
     d, rk = size(model.Γ[k])
@@ -218,7 +218,7 @@ end
 # """
 # function update_Γk!(
 #     manif :: AbstractManifold,
-#     model :: MultiResponseVarianceComponentModel{T},
+#     model :: MRVCModel{T},
 #     k     :: Integer;
 #     maxiter :: Integer = 100
 #     ) where T <: BlasReal
@@ -334,7 +334,7 @@ end
 
 # function update_Γk!(
 #     manif :: FixedRankMatrices,
-#     model :: MultiResponseVarianceComponentModel{T},
+#     model :: MRVCModel{T},
 #     k     :: Integer;
 #     maxiter :: Integer = 200
 #     ) where T <: BlasReal
