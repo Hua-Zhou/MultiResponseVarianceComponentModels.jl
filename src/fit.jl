@@ -1,7 +1,7 @@
 """
     fit!(model::MRVCModel)
 
-Fit a multivariate response variance component model by an MM or EM algorithm.
+Fit a multivariate response variance components model by MM or EM algorithm.
 
 # Positional arguments
 - `model`            : a `MRVCModel` instance.  

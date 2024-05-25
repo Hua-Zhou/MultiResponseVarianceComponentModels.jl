@@ -9,8 +9,7 @@ const MRVCModels = MultiResponseVarianceComponentModels
 rng = MersenneTwister(123)
 
 n, p, d, m = 855, 3, 4, 3
-# design matrix, including intercept
-X = [ones(n) randn(rng, n, p - 1)]
+X = [ones(n) randn(rng, n, p - 1)] # design matrix including intercept
 # V[1] is an AR1(ρ) matrix, with entries ρ^|i-j|
 # V[2] has entries i * (n - j + 1) for j ≥ i, then scaled to be a correlation matrix
 # V[3] is identity
@@ -35,7 +34,6 @@ y = vec(X * B_true) + cholesky(Symmetric(Ω_true)).L * randn(rng, n * d)
 Y = reshape(y, n, d)
 
 model = MRVCModel(Y, X, V)
-modelr = MRVCModel(Y, X, V; reml = true)
 
 @testset "fit! (full rank) by MLE with MM" begin
     @time history = MRVCModels.fit!(model, algo = :MM, maxiter = 100)
@@ -69,16 +67,18 @@ end
     println()
 end
 
+model = MRVCModel(Y, X, V; reml = true)
+
 @testset "fit! (full rank) by REML with MM" begin
-    @time history = MRVCModels.fit!(modelr, algo = :MM, maxiter = 100)
+    @time history = MRVCModels.fit!(model, algo = :MM, maxiter = 100)
     println("B_true:")
     display(B_true)
     println()
     println("B̂:")
-    display(modelr.B_reml)
+    display(model.B_reml)
     println()
     for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - modelr.Σ[k]))")
+        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - model.Σ[k]))")
         println()
     end
     display(history)
@@ -86,15 +86,15 @@ end
 end
 
 @testset "fit! (full rank) by REML with EM" begin
-    @time history = MRVCModels.fit!(modelr, algo = :EM, maxiter = 100)
+    @time history = MRVCModels.fit!(model, algo = :EM, maxiter = 100)
     println("B_true:")
     display(B_true)
     println()
     println("B̂:")
-    display(modelr.B_reml)
+    display(model.B_reml)
     println()
     for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - modelr.Σ[k]))")
+        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - model.Σ[k]))")
         println()
     end
     display(history)
