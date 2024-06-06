@@ -3,9 +3,6 @@
 
 Fit a multivariate response variance components model by MM or EM algorithm.
 
-# Positional arguments
-- `model`            : a `MRVCModel` instance.  
-
 # Keyword arguments
 - `maxiter::Integer` : maximum number of iterations. Default is `1000`.
 - `reltol::Real`     : relative tolerance for convergence. Default is `1e-6`.

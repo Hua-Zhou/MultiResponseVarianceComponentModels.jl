@@ -62,9 +62,9 @@ indicates `A` and `B` are symmetric.
 end
 
 function project_null(
-    Y :: AbstractMatrix{T},
-    X :: AbstractMatrix{T},
-    V :: AbstractVector{Matrix{T}}
+    Y :: AbstractVecOrMat{T},
+    X :: AbstractVecOrMat{T},
+    V :: Vector{<:AbstractMatrix{T}}
     ) where {T <: Real}
     n, p, m = size(X, 1), size(X, 2), length(V)
     if isempty(X)
@@ -86,15 +86,6 @@ function project_null(
     end 
 end
 
-vech(A) = [A[i, j] for i in 1:size(A, 1), j in 1:size(A, 2) if i ≥ j]
-
-function commutation(m, n)
-    mn = m * n 
-    reshape(kron(vec(Matrix{Float64}(I, m, m)), Matrix{Float64}(I, n, n)), mn, mn)
-end
-
-commutation(m) = commutation(m, m)
-
 function duplication(n)
     D = zeros(Int, abs2(n), (n * (n + 1)) >> 1)
     vechidx = 1
@@ -107,3 +98,12 @@ function duplication(n)
     end
     D
 end
+
+vech(A) = [A[i, j] for i in 1:size(A, 1), j in 1:size(A, 2) if i ≥ j]
+
+function commutation(m, n)
+    mn = m * n 
+    reshape(kron(vec(Matrix{Float64}(I, m, m)), Matrix{Float64}(I, n, n)), mn, mn)
+end
+
+commutation(m) = commutation(m, m)

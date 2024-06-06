@@ -5,7 +5,7 @@ linear mixed models.
 """
 module MultiResponseVarianceComponentModels
 
-using IterativeSolvers, LinearAlgebra, Manopt, Manifolds, Distributions
+using IterativeSolvers, LinearAlgebra, Manopt, Manifolds, Distributions, SweepOperator
 import LinearAlgebra: BlasReal, copytri!
 export fit!,
     kron_axpy!, 
@@ -89,14 +89,19 @@ struct MRVCModel{T <: BlasReal}
 end
 
 """
-    MRVCModel(Y::AbstractMatrix, X::Union{Nothing, AbstractMatrix}, V::Vector{<:AbstractMatrix})
+    MRVCModel(Y, X, V)
 
 Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`, 
 and kernel matrices `V`.
 
+# Positional arguments
+- `Y::AbstractVecOrMat`                                : response matrix
+- `X::Union{Nothing, AbstractVecOrMat}`                : predictor matrix
+- `V::Union{AbstractMatrix, Vector{<:AbstractMatrix}}` : kernel matrices
+
 # Keyword arguments
 - `se::Bool`   : calculate standard errors. Default is `true`.
-- `reml::Bool` : REML instead of ML estimation. Default is `false`.
+- `reml::Bool` : REML estimation instead of ML estimation. Default is `false`.
 """
 function MRVCModel(
     Y :: AbstractMatrix{T},

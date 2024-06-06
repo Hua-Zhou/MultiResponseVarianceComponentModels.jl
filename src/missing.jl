@@ -1,11 +1,11 @@
 """
-    permute(Y)
+    permute(Y::AbstractVecOrMat)
 
 Return permutation `P` such that `vec(Y)[P]` rearranges `vec(Y)` with missing values 
 spliced after non-missing values. Also return inverse permutation `invP` such that
 `vec(Y)[P][invP] = vec(Y)`.
 """
-function permute(Y)
+function permute(Y::AbstractMatrix)
     idxall = findall(ismissing, Y)
     n, d = size(Y)
     P = zeros(Int, n * d)
@@ -28,3 +28,5 @@ function permute(Y)
     P[r] = ((j1 - 1) * n + i1 + 1):((j2 - 1) * n + i2 - 1)
     P, invperm(P)
 end
+
+permute(y::AbstractVector) = permute(reshape(y, length(y), 1))

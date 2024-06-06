@@ -9,6 +9,7 @@ IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Manifolds = "1cead3c2-87b3-11e9-0ccd-23c62b72b94e"
 Manopt = "0fc0a36d-df90-57f3-8f93-d78a9fc72bb5"
+SweepOperator = "7522ee7d-7047-56d0-94d9-4bc626e7058d"
 
 [compat]
 Distributions = "0.25"
