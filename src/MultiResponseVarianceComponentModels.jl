@@ -1,15 +1,15 @@
 """
-`MultiResponseVarianceComponentModels.jl` or `MRVCModels.jl` permits (residual) maximum 
-likelihod estimation and inference for multivariate response variance components 
-linear mixed models.
+`MultiResponseVarianceComponentModels.jl` or `MRVCModels.jl` permits maximum
+likelihood (ML) and residual maximum likelihood (REML) estimation as well as inference
+for multivariate response variance components linear mixed models.
 """
 module MultiResponseVarianceComponentModels
 
 using IterativeSolvers, LinearAlgebra, Manopt, Manifolds, Distributions, SweepOperator
 import LinearAlgebra: BlasReal, copytri!
 export fit!,
-    kron_axpy!, 
-    kron_reduction!, 
+    kron_axpy!,
+    kron_reduction!,
     loglikelihood!,
     MRVCModel,
     MultiResponseVarianceComponentModel,
@@ -56,6 +56,7 @@ struct MRVCModel{T <: BlasReal}
     storage_nd_nd      :: Matrix{T}
     storage_pd_pd      :: Matrix{T}
     logl               :: Vector{T} # likelihood
+    # standard errors
     storages_nd_nd     :: Union{Nothing, Vector{Matrix{T}}} # for fisher_Σ!
     Bcov               :: Union{Nothing, Matrix{T}} # for fisher_B!
     Σcov               :: Union{Nothing, Matrix{T}} # for fisher_Σ!
@@ -84,14 +85,16 @@ struct MRVCModel{T <: BlasReal}
     storage_pd_reml    :: Union{Nothing, Vector{T}}
     logl_reml          :: Union{Nothing, Vector{T}}
     Bcov_reml          :: Union{Nothing, Matrix{T}}
+    # indicator for se, reml, missing response
     se                 :: Bool
     reml               :: Bool
+    ymissing           :: Bool
 end
 
 """
     MRVCModel(Y, X, V)
 
-Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`, 
+Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`,
 and kernel matrices `V`.
 
 # Positional arguments
@@ -111,56 +114,70 @@ function MRVCModel(
     se :: Bool = true,
     reml :: Bool = false
     ) where T <: BlasReal
-    # dimensions
-    if any(ismissing, Y)
-        @assert reml == false
-        @assert se == false
-        P, invP            = permute(Y)
-        storage_nd_miss    = Vector{T}(undef, nd)
-        storage_nd_nd_miss = Matrix{T}(undef, nd, nd)
-    else
-        P = invP = storage_nd_miss = storage_nd_nd_miss = nothing
-    end
     if X === nothing
-        p = 0
-        reml = false
+        reml = false # REML = MLE in this case
         Xmat = Matrix{T}(undef, n, 0)
     else
         Xmat = X
-        p = size(X, 2)
     end
-    d, m = size(Y, 2), length(V)
+    @assert size(Y, 1) == size(X, 1) == size(V[1], 1)
+    if any(ismissing, Y)
+        @assert reml == false "only ML estimation is possible for missing response"
+        @assert se == false "standard errors cannot be computed for missing response"
+        P, invP            = permute(Y)
+        storage_nd_miss    = Vector{T}(undef, nd)
+        storage_nd_nd_miss = Matrix{T}(undef, nd, nd)
+        ymissing           = true
+    else
+        P = invP = storage_nd_miss = storage_nd_nd_miss = nothing
+        ymissing = false
+    end
+    # define dimesions
+    n, p, d, m = size(Y, 1), size(X, 2), size(Y, 2), length(V)
+    nd, pd = n * d, p * d
     if reml
-        Y_reml = deepcopy(Y)
-        X_reml = deepcopy(Xmat)
-        V_reml = deepcopy(V)
-        n_reml, p_reml, p = size(Y_reml, 1), size(X_reml, 2), 0
-        nd_reml = n_reml * d
-        pd_reml = p_reml * d
-        B_reml  = Matrix{T}(undef, p_reml, d)
-        Ω_reml  = Matrix{T}(undef, nd_reml, nd_reml)
-        R_reml  = Matrix{T}(undef, n_reml, d)
+        Y_reml  = deepcopy(Y)
+        X_reml  = deepcopy(Xmat)
+        V_reml  = deepcopy(V)
+        Y, V, _ = project_null(Y_reml, X_reml, V_reml)
+        Xmat    = Matrix{T}(undef, size(Y, 1), 0)
+        # redefine dimensions
+        n_reml, p_reml = n, p
+        n, p = size(Y, 1), 0
+        nd, pd = n * d, p * d
+        nd_reml, pd_reml = n_reml * d, p_reml * d
+        B_reml             = Matrix{T}(undef, p_reml, d)
+        Ω_reml             = Matrix{T}(undef, nd_reml, nd_reml)
+        R_reml             = Matrix{T}(undef, n_reml, d)
         storage_nd_nd_reml = Matrix{T}(undef, nd_reml, nd_reml)
         storage_pd_pd_reml = Matrix{T}(undef, pd_reml, pd_reml)
-        storage_n_p_reml = Matrix{T}(undef, n_reml, p_reml)
-        storage_nd_1_reml = Vector{T}(undef, nd_reml)
-        storage_nd_2_reml = Vector{T}(undef, nd_reml)
-        storage_n_d_reml = Matrix{T}(undef, n_reml, d)
-        storage_p_d_reml = Matrix{T}(undef, p_reml, d)
-        storage_pd_reml = Vector{T}(undef, pd_reml)
-        logl_reml = zeros(T, 1)
-        Y, V, _ = project_null(Y_reml, X_reml, V_reml)
-        Xmat = Matrix{T}(undef, size(Y, 1), 0)
+        storage_n_p_reml   = Matrix{T}(undef, n_reml, p_reml)
+        storage_nd_1_reml  = Vector{T}(undef, nd_reml)
+        storage_nd_2_reml  = Vector{T}(undef, nd_reml)
+        storage_n_d_reml   = Matrix{T}(undef, n_reml, d)
+        storage_p_d_reml   = Matrix{T}(undef, p_reml, d)
+        storage_pd_reml    = Vector{T}(undef, pd_reml)
+        logl_reml          = zeros(T, 1)
     else
-        Y_reml = X_reml = V_reml = B_reml = R_reml = Ω_reml =
+        Y_reml = X_reml = V_reml = B_reml = Ω_reml = R_reml = 
             storage_nd_nd_reml = storage_pd_pd_reml = 
             storage_n_p_reml = storage_nd_1_reml = 
             storage_nd_2_reml = storage_n_d_reml = 
             storage_p_d_reml = storage_pd_reml = 
             logl_reml = Bcov_reml = nothing
     end
-    n = size(Y, 1)
-    nd, pd = n * d, p * d
+    if se
+        storages_nd_nd = [Matrix{T}(undef, nd, nd) for _ in 1:m]
+        Bcov           = Matrix{T}(undef, pd, pd)
+        Σcov           = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d))
+        if reml
+            Bcov_reml  = Matrix{T}(undef, pd_reml, pd_reml)
+        else
+            Bcov_reml  = nothing
+        end
+    else
+        storages_nd_nd = Bcov = Σcov = Bcov_reml = nothing
+    end
     # parameters
     B                = Matrix{T}(undef, p, d)
     Γ                = [Matrix{T}(undef, d, Σ_rank[k]) for k in 1:m]
@@ -190,16 +207,6 @@ function MRVCModel(
     storage_nd_nd    = Matrix{T}(undef, nd, nd)
     storage_pd_pd    = Matrix{T}(undef, pd, pd)
     logl             = zeros(T, 1)
-    if se
-        storages_nd_nd = [Matrix{T}(undef, nd, nd) for _ in 1:m]
-        Bcov           = Matrix{T}(undef, pd, pd)
-        Σcov           = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d))
-        if reml
-            Bcov_reml  = Matrix{T}(undef, pd_reml, pd_reml)
-        end
-    else
-        storages_nd_nd = Bcov = Σcov = Bcov_reml = nothing
-    end
     MRVCModel{T}(
         Y, Xmat, V,
         B, Σ, Ω, Γ, Ψ, Σ_rank,
@@ -215,10 +222,8 @@ function MRVCModel(
         storage_nd_nd_reml, storage_pd_pd_reml, storage_n_p_reml,
         storage_nd_1_reml, storage_nd_2_reml, storage_n_d_reml,
         storage_p_d_reml, storage_pd_reml, logl_reml, Bcov_reml,
-        se, reml)
+        se, reml, ymissing)
 end
-
-const MultiResponseVarianceComponentModel = MRVCModel
 
 MRVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
     MRVCModel(Y, reshape(x, length(x), 1), V; kwargs...)
@@ -238,6 +243,8 @@ MRVCModel(y::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) =
 MRVCModel(Y, X, V::AbstractMatrix; kwargs...) = MRVCModel(Y, X, [V]; kwargs...)
 
 MRVCModel(Y, V::AbstractMatrix; kwargs...) = MRVCModel(Y, [V]; kwargs...)
+
+const MultiResponseVarianceComponentModel = MRVCModel
 
 function Base.show(io::IO, model::MRVCModel)
     if model.reml
