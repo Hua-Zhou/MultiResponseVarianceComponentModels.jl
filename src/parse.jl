@@ -22,8 +22,8 @@ end
     h2(model::MRVCModel)
 
 Calculate heritability estimates and their standard errors, assuming that all variance components 
-capture genetic effects except the last term. Also return total heritability and its standard error
-from sum of individual contributions.
+capture genetic effects except the last term. Also return total heritability from sum of individual 
+contributions and its standard error.
 """
 function h2(
     model :: MRVCModel{T}

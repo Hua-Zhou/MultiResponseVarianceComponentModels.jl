@@ -24,6 +24,9 @@ function fit!(
     algo    :: Symbol  = :MM,
     log     :: Bool = false,
     ) where T <: BlasReal
+    if model.ymissing
+        @assert algo == :MM "only MM algorithm is possible for missing response"
+    end
     Y, X, V = model.Y, model.X, model.V
     # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
@@ -54,8 +57,8 @@ function fit!(
             copy!(model.R, Y)
         end
         # initialization of variance components Σ[1], ..., Σ[m]
-        # If R is MatrixNormal(0, Vi, Σi), i.e., vec(R) is Normal(0, Σi⊗Vi),
-        # then E(R'R) = tr(Vi) * Σi. So we estimate Σi by R'R / tr(Vi)
+        # if R is MatrixNormal(0, V[i], Σ[i]), i.e., vec(R) is Normal(0, Σ[i]⊗V[i]),
+        # then E(R'R) = tr(V[i]) * Σ[i], so we estimate Σ[i] by R'R / tr(V[i])
         mul!(model.storage_d_d_1, transpose(model.R), model.R)
         for k in 1:m
             model.Σ[k] .= inv(tr(model.V[k])) .* model.storage_d_d_1
@@ -67,7 +70,7 @@ function fit!(
     else
         throw("Cannot recognize initialization method $init")
     end
-    logl = loglikelihood!(model)
+    model.ymissing ? logl = loglikelihood_miss!(model) : logl = loglikelihood!(model)
     toc = time()
     verbose && println("iter = 0, logl = $logl")
     IterativeSolvers.nextiter!(history)
@@ -78,11 +81,15 @@ function fit!(
     for iter in 1:maxiter
         IterativeSolvers.nextiter!(history)
         tic = time()
-        # initial estiamte of Σ can be lousy, so we update Σ first in the 1st round
-        p > 0 && iter > 1 && update_B!(model)
-        update_Σ!(model, algo = algo)
+        # initial estiamte of Σ[i] can be lousy, so we update Σ[i] first in the 1st round
+        if p > 0 && iter > 1 && model.ymissing
+            update_B_miss!(model)
+        elseif p > 0 && iter > 1
+            update_B!(model)
+        end
+        update_Σ!(model, algo = algo, ymissing = model.ymissing)
         logl_prev = logl
-        logl = loglikelihood!(model)
+        model.ymissing ? logl = loglikelihood_miss!(model) : logl = loglikelihood!(model)
         toc = time()
         verbose && println("iter = $iter, logl = $logl")
         push!(history, :iter    , iter)
@@ -128,8 +135,9 @@ Update the variance component parameters `model.Σ`, assuming inverse of
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function update_Σ!(
-    model :: MRVCModel{T};
-    algo  :: Symbol = :MM
+    model    :: MRVCModel{T};
+    algo     :: Symbol = :MM,
+    ymissing :: Bool = false
     ) where T <: BlasReal
     d = size(model.Y, 2)
     Ω⁻¹ = model.storage_nd_nd
@@ -139,7 +147,11 @@ function update_Σ!(
     copyto!(model.Ω⁻¹R, model.storage_nd_2)
     for k in 1:length(model.V)
         if model.Σ_rank[k] ≥ d
-            update_Σk!(model, k, Val(algo))
+            if ymissing
+                update_Σk_miss!(model, k, Val(algo))
+            else
+                update_Σk!(model, k, Val(algo))
+            end
         else
             update_Σk!(model, k, model.Σ_rank[k])
         end
@@ -161,12 +173,12 @@ function update_Σk!(
           :: Val{:MM}
     ) where T <: BlasReal
     Ω⁻¹ = model.storage_nd_nd
-    # storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k])) = the Mnj matrix in manuscript
+    # storage_d_d_1 = gradient of tr[Ω⁻¹(Σ[k]⊗V[k])] = the M[k] matrix in manuscript
     kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
-    # lower Cholesky factor L of gradient
+    # lower Cholesky factor L of gradient M[i]
     _, info = LAPACK.potrf!('L', model.storage_d_d_1)
     info > 0 && throw("Gradient of Σ[$k] is singular")
-    # storage_d_d_2 = L' * Σ[k] * (R' * V[k] * R) * Σ[k] * L
+    # storage_d_d_2 = L'Σ[k](R'V[k]R)Σ[k]L
     mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
     mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
     BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
@@ -187,7 +199,77 @@ function update_Σk!(
         end
     end
     mul!(model.Σ[k], vecs, transpose(vecs))
-    # inverse of Cholesky factor of gradient
+    # inverse of Cholesky factor of gradient M[k]
+    LAPACK.trtri!('L', 'N', model.storage_d_d_1)
+    # update variance component Σ[k]
+    BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
+    BLAS.trmm!('L', 'L', 'T', 'N', one(T), model.storage_d_d_1, model.Σ[k])
+    model.Σ[k]
+end
+
+"""
+    update_Σk_miss!(model::MRVCModel, k, Val(:MM))
+
+MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
+covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and
+`model.Ω⁻¹R` and conditional variance `model.storage_n_miss_n_miss_1` precomputed.
+"""
+function update_Σk_miss!(
+    model :: MRVCModel{T},
+    k     :: Integer,
+          :: Val{:MM}
+    ) where T <: BlasReal
+    Ω⁻¹ = model.storage_nd_nd
+    nd = size(Ω⁻¹, 1)
+    n_obs = nd - model.n_miss
+    # compute Ω⁻¹P'CPΩ⁻¹
+    C = model.storage_n_miss_n_miss_1
+    PΩ⁻¹ = model.storage_nd_nd_miss
+    PΩ⁻¹ .= @view Ω⁻¹[model.P, :]
+    copy!(model.storage_n_miss_n_obs_2,
+        view(PΩ⁻¹, (n_obs + 1):nd, 1:n_obs))
+    copy!(model.storage_n_miss_n_miss_2, 
+        view(PΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd))
+    Ω⁻¹PtCPΩ⁻¹ = model.storage_nd_nd_miss
+    mul!(model.storage_n_miss_n_obs_3, C, model.storage_n_miss_n_obs_2)
+    mul!(view(Ω⁻¹PtCPΩ⁻¹, 1:n_obs, 1:n_obs), 
+        transpose(model.storage_n_miss_n_obs_2), model.storage_n_miss_n_obs_3)
+    mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, 1:n_obs), 
+        transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_obs_3)
+    mul!(model.storage_n_miss_n_miss_3, C, model.storage_n_miss_n_miss_2)
+    mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd), 
+        transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
+    copytri!(Ω⁻¹PtCPΩ⁻¹, 'L')
+    # storage_d_d_1 = gradient of tr[Ω⁻¹(Σ[k]⊗V[k])] = the M[k] matrix in manuscript
+    kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
+    # storage_d_d_miss = gradient of tr[Ω⁻¹P'CPΩ⁻¹(Σ[k]⊗V[k])] = the M*[k] matrix in manuscript
+    kron_reduction!(Ω⁻¹PtCPΩ⁻¹, model.V[k], model.storage_d_d_miss, true)
+    # lower Cholesky factor L of M[k]
+    _, info = LAPACK.potrf!('L', model.storage_d_d_1)
+    info > 0 && throw("Gradient of Σ[$k] is singular")
+    # storage_d_d_2 = L'Σ[k](R'V[k]R + M*[k])Σ[k]L
+    mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
+    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
+    model.storage_d_d_2 .= model.storage_d_d_2 .+ model.storage_d_d_miss
+    BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
+    mul!(model.storage_d_d_3, model.storage_d_d_2, model.Σ[k])
+    mul!(model.storage_d_d_2, transpose(model.Σ[k]), model.storage_d_d_3)
+    # Σ[k] = sqrtm(storage_d_d_2) for now
+    vals, vecs = eigen!(Symmetric(model.storage_d_d_2))
+    @inbounds for j in 1:length(vals)
+        if vals[j] > 0
+            v = sqrt(sqrt(vals[j]))
+            for i in 1:size(vecs, 1)
+                vecs[i, j] *= v
+            end
+        else
+            for i in 1:size(vecs, 1)
+                vecs[i, j] = 0
+            end
+        end
+    end
+    mul!(model.Σ[k], vecs, transpose(vecs))
+    # inverse of Cholesky factor of gradient M[k]
     LAPACK.trtri!('L', 'N', model.storage_d_d_1)
     # update variance component Σ[k]
     BLAS.trmm!('R', 'L', 'N', 'N', one(T), model.storage_d_d_1, model.Σ[k])
@@ -209,12 +291,12 @@ function update_Σk!(
     ) where T <: BlasReal
     d   = size(model.Y, 2)
     Ω⁻¹ = model.storage_nd_nd
-    # storage_d_d_1 = gradient of tr(Ω⁻¹ (Σ[k] ⊗ V[k])) = the Mnj matrix in manuscript
+    # storage_d_d_1 = gradient of tr[Ω⁻¹(Σ[k]⊗V[k])] = the M[k] matrix in manuscript
     kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
-    # storage_d_d_2 = R' * V[k] * R
+    # storage_d_d_2 = R'V[k]R
     mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
     mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
-    # storage_d_d_2 = (R' * V[k] * R - Mk) / rk
+    # storage_d_d_2 = (R'V[k]R - M[k]) / rank[k]
     model.storage_d_d_2 .= 
         (model.storage_d_d_2 .- model.storage_d_d_1) ./ model.V_rank[k]
     mul!(model.storage_d_d_1, model.storage_d_d_2, model.Σ[k])
@@ -253,6 +335,63 @@ function update_B!(
         end
     end
     copytri!(G, 'U')
+    # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
+    copyto!(model.storage_nd_1, model.Y)
+    mul!(model.storage_nd_2, model.storage_nd_nd, model.storage_nd_1)
+    copyto!(model.storage_n_d, model.storage_nd_2)
+    mul!(model.storage_p_d, transpose(model.X), model.storage_n_d)
+    # Cholesky solve
+    _, info = LAPACK.potrf!('U', G)
+    info > 0 && throw("Gram matrix (Id⊗X')Ω⁻¹(Id⊗X) is singular")
+    copyto!(model.storage_pd, model.storage_p_d)
+    LAPACK.potrs!('U', G, model.storage_pd)
+    copyto!(model.B, model.storage_pd)
+    # update residuals R
+    update_res!(model)
+    model.B
+end
+
+"""
+    update_B_miss!(model::MRVCModel)
+
+Update the regression coefficients `model.B`, assuming inverse of 
+covariance matrix `model.Ω` is available at `model.storage_nd_nd` and
+conditional covariance `model.storage_n_miss_n_obs_1` precomputed.
+"""
+function update_B_miss!(
+    model :: MRVCModel{T}
+    ) where T <: BlasReal
+    Ω⁻¹ = model.storage_nd_nd
+    G   = model.storage_pd_pd
+    # Gram matrix G = (Id⊗X')Ω⁻¹(Id⊗X) = (X'Ω⁻¹ᵢⱼX)ᵢⱼ, 1 ≤ i,j ≤ d
+    n, d, p = size(model.Y, 1), size(model.Y, 2), size(model.X, 2)
+    for j in 1:d
+        Ωcidx = ((j - 1) * n + 1):(j * n)
+        Gcidx = ((j - 1) * p + 1):(j * p)
+        for i in 1:j
+            Ωridx = ((i - 1) * n + 1):(i * n)
+            Gridx = ((i - 1) * p + 1):(i * p)
+            Ω⁻¹ᵢⱼ = view(Ω⁻¹, Ωridx, Ωcidx)
+            Gᵢⱼ   = view(G  , Gridx, Gcidx)
+            mul!(model.storage_n_p, Ω⁻¹ᵢⱼ, model.X)
+            mul!(Gᵢⱼ, transpose(model.X), model.storage_n_p)
+        end
+    end
+    copytri!(G, 'U')
+    # compute imputed response
+    nd = size(Ω⁻¹, 1)
+    n_obs = nd - model.n_miss
+    mul!(model.R, model.X, model.B)
+    copyto!(model.storage_nd_1, model.R)
+    model.storage_nd_2 .= @view model.storage_nd_1[model.P] # expected mean
+    copy!(model.storage_n_obs, view(model.storage_nd_2, 1:n_obs))
+    copy!(model.storage_n_miss, view(model.storage_nd_2, (n_obs + 1):nd))
+    model.storage_n_obs .= model.Y_obs - model.storage_n_obs
+    BLAS.gemv!('N', one(T), model.storage_n_miss_n_obs_1, model.storage_n_obs, one(T), model.storage_n_miss) # conditional mean
+    copyto!(model.storage_nd_2, Y_obs)
+    copy!(view(model.storage_nd_2, (n_obs + 1):nd), model.storage_n_miss)
+    model.storage_nd_1 .= @view model.storage_nd_2[model.invP]
+    copyto!(Y, model.storage_nd_1)
     # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
     copyto!(model.storage_nd_1, model.Y)
     mul!(model.storage_nd_2, model.storage_nd_nd, model.storage_nd_1)
@@ -328,9 +467,55 @@ function loglikelihood!(
     @inbounds for i in 1:length(model.storage_nd_1)
         logl += 2log(model.storage_nd_nd[i, i])
     end
-    # Ω⁻¹ from upper cholesky factor
+    # Ω⁻¹ from upper Cholesky factor
     LAPACK.potri!('U', model.storage_nd_nd)
     copytri!(model.storage_nd_nd, 'U')
+    logl /= -2
+end
+
+"""
+    loglikelihood_miss!(model::MRVCModel)
+
+Overwrite `model.storage_nd_nd` by inverse of the covariance matrix `model.Ω`, 
+overwrite `model.storage_nd` by `U' \\ vec(model.R)`, overwrite
+`model.storage_n_miss_n_miss_1` by conditional variance, and return the 
+surrogate of log-likelihood. This function assumes `model.Ω` and 
+`model.R` are already updated according to `model.Σ` and `model.B`.
+"""
+function loglikelihood_miss!(
+    model::MRVCModel{T}
+    ) where T <: BlasReal
+    copyto!(model.storage_nd_nd, model.Ω)
+    # Cholesky of covariance Ω = U'U
+    _, info = LAPACK.potrf!('U', model.storage_nd_nd)
+    info > 0 && throw("Covariance matrix Ω is singular")
+    # storage_nd = U' \ vec(R)
+    copyto!(model.storage_nd_1, model.R)
+    BLAS.trsv!('U', 'T', 'N', model.storage_nd_nd, model.storage_nd_1)
+    # assemble pieces for log-likelihood
+    logl = sum(abs2, model.storage_nd_1) + length(model.storage_nd_1) * log(2π)
+    @inbounds for i in 1:length(model.storage_nd_1)
+        logl += 2log(model.storage_nd_nd[i, i])
+    end
+    # Ω⁻¹ from upper Cholesky factor
+    LAPACK.potri!('U', model.storage_nd_nd)
+    copytri!(model.storage_nd_nd, 'U')
+    # compute conditional variance
+    Ω⁻¹ = model.storage_nd_nd
+    nd = size(Ω⁻¹, 1)
+    n_obs = nd - model.n_miss
+    PΩ⁻¹Pt = model.storage_nd_nd_miss
+    PΩ⁻¹Pt .= @view Ω⁻¹[model.P, model.P]
+    sweep!(PΩ⁻¹Pt, 1:n_obs)
+    copytri!(PΩ⁻¹Pt, 'U')
+    copy!(model.storage_n_miss_n_obs_1, 
+        view(PΩ⁻¹Pt, (n_obs + 1):nd, 1:n_obs)) # for conditional mean
+    copy!(model.storage_n_miss_n_miss_1, 
+        view(PΩ⁻¹Pt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
+    # compute tr(PΩ⁻¹PtC) for surrogate function of log-likelihood
+    C = storage_n_miss_n_miss_1
+    PΩ⁻¹Pt .= @view Ω⁻¹[model.P, model.P]
+    logl += dot(view(PΩ⁻¹Pt, (n_obs + 1):nd, (n_obs + 1):nd), C)
     logl /= -2
 end
 
@@ -349,7 +534,7 @@ function loglikelihood_reml!(
     @inbounds for i in 1:length(model.storage_nd_1_reml)
         logl += 2log(model.storage_nd_nd_reml[i, i])
     end
-    # Ω⁻¹ from upper cholesky factor
+    # Ω⁻¹ from upper Cholesky factor
     LAPACK.potri!('U', model.storage_nd_nd_reml)
     copytri!(model.storage_nd_nd_reml, 'U')
     logl /= -2
@@ -358,7 +543,7 @@ end
 function update_res!(
     model :: MRVCModel{T}
     ) where T <: BlasReal
-    # update R = Y - X B
+    # update R = Y - XB
     BLAS.gemm!('N', 'N', -one(T), model.X, model.B, one(T), copyto!(model.R, model.Y))
     model.R
 end
@@ -366,7 +551,7 @@ end
 function update_res_reml!(
     model :: MRVCModel{T}
     ) where T <: BlasReal
-    # update R = Y - X B
+    # update R = Y - XB
     BLAS.gemm!('N', 'N', -one(T), model.X_reml, model.B_reml, one(T), copyto!(model.R_reml, model.Y_reml))
     model.R
 end
@@ -462,14 +647,14 @@ function fisher_Σ!(
                 view(Ω⁻¹, :, ((j - 1) * n + 1):(j * n)), model.V[k])
         end
     end
-    # E[-∂logl/∂vechΣⱼᵀ∂vechΣᵢ] = 1/2 Dd'⋅Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅Dd,
-    # where Wᵢ = I_d⊗[(I_d⊗Vᵢ)Kdn]^(n) and Uᵢ = Wᵢ⋅Dd in manuscript
+    # E[-∂logl/∂vechΣ[j]'∂vechΣ[i] = 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd,
+    # where W[i] = Id⊗[(Id⊗V[i])Kdn]^(n) and U[i] = W[i]⋅Dd in manuscript
     Fisher = zeros(T, np, np)
     @inbounds for i in 1:np
-        # compute 1/2 Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ
-        # keep track of indices for each column of Wᵢ
-        k1     = div(i - 1, d^2) + 1 # 1 ≤ k1 ≤ m to choose Vₖ
-        d2idx1 = mod1(i, d^2) # 1 ≤ d2idx ≤ d² to choose column of Wᵢ
+        # compute 1/2 W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]
+        # keep track of indices for each column of W[i]
+        k1     = div(i - 1, d^2) + 1 # 1 ≤ k1 ≤ m to choose V[k]
+        d2idx1 = mod1(i, d^2) # 1 ≤ d2idx ≤ d² to choose column of W[i]
         ddidx1 = div(d2idx1 - 1, d) # 0 ≤ ddidx ≤ d - 1 to choose columns of Ω⁻¹
         dridx1 = mod1(d2idx1, d) # 1 ≤ dridx ≤ d to choose columns of Ω⁻¹
         for j in i:np
@@ -485,7 +670,7 @@ function fisher_Σ!(
         end
     end
     copytri!(Fisher, 'U')
-    # compute 1/2 Dd'⋅Wⱼ'(Ω⁻¹⊗Ω⁻¹)Wᵢ⋅Dd
+    # compute 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd
     vechF = zeros(T, (m * d * (d + 1)) >> 1, (m * d * (d + 1)) >> 1)
     D = duplication(d)
     for i in 1:m
