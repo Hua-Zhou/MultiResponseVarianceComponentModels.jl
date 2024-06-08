@@ -70,13 +70,31 @@ function fit!(
     else
         throw("Cannot recognize initialization method $init")
     end
-    model.ymissing ? logl = loglikelihood_miss!(model) : logl = loglikelihood!(model)
+    if model.ymissing
+        # update conditional variance
+        C = model.storage_n_miss_n_miss_1
+        PΩPt = model.storage_nd_nd_miss
+        PΩPt .= @view model.Ω[model.P, model.P]
+        nd = size(model.Ω, 1)
+        n_obs = nd - model.n_miss    
+        sweep!(PΩPt, 1:n_obs)
+        copytri!(PΩPt, 'U')
+        copy!(model.storage_n_miss_n_obs_1, 
+            view(PΩPt, (n_obs + 1):nd, 1:n_obs)) # for conditional mean
+        copy!(model.storage_n_miss_n_miss_1, 
+            view(PΩPt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
+        logl = NaN
+    else
+        logl = loglikelihood!(model)
+    end
     toc = time()
-    verbose && println("iter = 0, logl = $logl")
-    IterativeSolvers.nextiter!(history)
-    push!(history, :iter    , 0)
-    push!(history, :logl    , logl)
-    push!(history, :itertime, toc - tic)
+    if !model.ymissing
+        verbose && println("iter = 0, logl = $logl")
+        IterativeSolvers.nextiter!(history)
+        push!(history, :iter    , 0)
+        push!(history, :logl    , logl)
+        push!(history, :itertime, toc - tic)
+    end
     # MM loop
     for iter in 1:maxiter
         IterativeSolvers.nextiter!(history)
@@ -240,10 +258,10 @@ function update_Σk_miss!(
     mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd), 
         transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
     copytri!(Ω⁻¹PtCPΩ⁻¹, 'L')
-    # storage_d_d_1 = gradient of tr[Ω⁻¹(Σ[k]⊗V[k])] = the M[k] matrix in manuscript
-    kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
     # storage_d_d_miss = gradient of tr[Ω⁻¹P'CPΩ⁻¹(Σ[k]⊗V[k])] = the M*[k] matrix in manuscript
     kron_reduction!(Ω⁻¹PtCPΩ⁻¹, model.V[k], model.storage_d_d_miss, true)
+    # storage_d_d_1 = gradient of tr[Ω⁻¹(Σ[k]⊗V[k])] = the M[k] matrix in manuscript
+    kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1, true)
     # lower Cholesky factor L of M[k]
     _, info = LAPACK.potrf!('L', model.storage_d_d_1)
     info > 0 && throw("Gradient of Σ[$k] is singular")
@@ -393,7 +411,6 @@ function update_B_miss!(
     model.storage_nd_1 .= @view model.storage_nd_2[model.invP]
     copyto!(model.Y, model.storage_nd_1)
     # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
-    copyto!(model.storage_nd_1, model.Y)
     mul!(model.storage_nd_2, model.storage_nd_nd, model.storage_nd_1)
     copyto!(model.storage_n_d, model.storage_nd_2)
     mul!(model.storage_p_d, transpose(model.X), model.storage_n_d)
@@ -500,22 +517,23 @@ function loglikelihood_miss!(
     # Ω⁻¹ from upper Cholesky factor
     LAPACK.potri!('U', model.storage_nd_nd)
     copytri!(model.storage_nd_nd, 'U')
-    # compute conditional variance
-    Ω⁻¹ = model.storage_nd_nd
-    nd = size(Ω⁻¹, 1)
-    n_obs = nd - model.n_miss
-    PΩ⁻¹Pt = model.storage_nd_nd_miss
-    PΩ⁻¹Pt .= @view Ω⁻¹[model.P, model.P]
-    sweep!(PΩ⁻¹Pt, 1:n_obs)
-    copytri!(PΩ⁻¹Pt, 'U')
-    copy!(model.storage_n_miss_n_obs_1, 
-        view(PΩ⁻¹Pt, (n_obs + 1):nd, 1:n_obs)) # for conditional mean
-    copy!(model.storage_n_miss_n_miss_1, 
-        view(PΩ⁻¹Pt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
     # compute tr(PΩ⁻¹PtC) for surrogate function of log-likelihood
     C = model.storage_n_miss_n_miss_1
+    PΩ⁻¹Pt = model.storage_nd_nd_miss
+    Ω⁻¹ = model.storage_nd_nd
     PΩ⁻¹Pt .= @view Ω⁻¹[model.P, model.P]
+    nd = size(Ω⁻¹, 1)
+    n_obs = nd - model.n_miss
     logl += dot(view(PΩ⁻¹Pt, (n_obs + 1):nd, (n_obs + 1):nd), C)
+    # update conditional variance
+    PΩPt = model.storage_nd_nd_miss
+    PΩPt .= @view model.Ω[model.P, model.P]
+    sweep!(PΩPt, 1:n_obs)
+    copytri!(PΩPt, 'U')
+    copy!(model.storage_n_miss_n_obs_1, 
+        view(PΩPt, (n_obs + 1):nd, 1:n_obs)) # for conditional mean
+    copy!(model.storage_n_miss_n_miss_1, 
+        view(PΩPt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
     logl /= -2
 end
 

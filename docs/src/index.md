@@ -14,7 +14,7 @@ where ``\boldsymbol{Y}`` and ``\boldsymbol{X}`` are ``n \times d`` response and 
 
 !!! note
 
-    [MRVCModels.jl](https://github.com/hua-zhou/MultiResponseVarianceComponentModels.jl) is not suitable for biobank-scale data. We recommend using this package for datasets of size up to ``n \cdot d \approx 50000``. This package also currently works for balanced data without any missing data.
+    [MRVCModels.jl](https://github.com/hua-zhou/MultiResponseVarianceComponentModels.jl) is not suitable for biobank-scale data. We recommend using this package for datasets of size up to ``n \cdot d \approx 50000``. This package can also handle data with missing response.
 
 # Installation
 

@@ -81,3 +81,14 @@ Calculating standard errors can be memory-consuming, so you could instead forego
 model = MRVCModel(Y, X, V; se = false) # or model = MRVCModel(Y, X, V; se = false, reml = true)
 @timev fit!(model)
 ```
+
+# Missing response
+You can also fit data with missing response. For example:
+```julia
+Y_miss = Matrix{Union{eltype(Y), Missing}}(missing, size(Y))
+copy!(Y_miss, Y)
+Y_miss[rand(1:length(Y_miss), n)] .= missing
+
+model = MRVCModel(Y_miss, X, V, se = false)
+@timev fit!(model)
+```
