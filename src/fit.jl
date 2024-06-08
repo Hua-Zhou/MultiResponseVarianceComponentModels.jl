@@ -150,7 +150,9 @@ end
     update_Σ!(model::MRVCModel)
 
 Update the variance component parameters `model.Σ`, assuming inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
+covariance matrix `model.Ω` is available at `model.storage_nd_nd`. For
+missing response, assume conditional variance `model.storage_n_miss_n_miss_1`
+is precomputed.
 """
 function update_Σ!(
     model    :: MRVCModel{T};
@@ -163,6 +165,28 @@ function update_Σ!(
     copyto!(model.storage_nd_1, model.R)
     mul!(model.storage_nd_2, Ω⁻¹, model.storage_nd_1)
     copyto!(model.Ω⁻¹R, model.storage_nd_2)
+    if ymissing
+        # compute Ω⁻¹P'CPΩ⁻¹
+        nd = size(Ω⁻¹, 1)
+        n_obs = nd - model.n_miss
+        C = model.storage_n_miss_n_miss_1
+        PΩ⁻¹ = model.storage_nd_nd_miss
+        PΩ⁻¹ .= @view Ω⁻¹[model.P, :]
+        copy!(model.storage_n_miss_n_obs_2,
+            view(PΩ⁻¹, (n_obs + 1):nd, 1:n_obs))
+        copy!(model.storage_n_miss_n_miss_2, 
+            view(PΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd))
+        Ω⁻¹PtCPΩ⁻¹ = model.storage_nd_nd_miss
+        mul!(model.storage_n_miss_n_obs_3, C, model.storage_n_miss_n_obs_2)
+        mul!(view(Ω⁻¹PtCPΩ⁻¹, 1:n_obs, 1:n_obs), 
+            transpose(model.storage_n_miss_n_obs_2), model.storage_n_miss_n_obs_3)
+        mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, 1:n_obs), 
+            transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_obs_3)
+        mul!(model.storage_n_miss_n_miss_3, C, model.storage_n_miss_n_miss_2)
+        mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd), 
+            transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
+        copytri!(Ω⁻¹PtCPΩ⁻¹, 'L')    
+    end
     for k in 1:length(model.V)
         if model.Σ_rank[k] ≥ d
             if ymissing
@@ -230,7 +254,8 @@ end
 
 MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and
-`model.Ω⁻¹R` and conditional variance `model.storage_n_miss_n_miss_1` precomputed.
+`model.Ω⁻¹R`, conditional variance `model.storage_n_miss_n_miss_1`, and
+Ω⁻¹P'CPΩ⁻¹ precomputed.
 """
 function update_Σk_miss!(
     model :: MRVCModel{T},
@@ -238,26 +263,7 @@ function update_Σk_miss!(
           :: Val{:MM}
     ) where T <: BlasReal
     Ω⁻¹ = model.storage_nd_nd
-    nd = size(Ω⁻¹, 1)
-    n_obs = nd - model.n_miss
-    # compute Ω⁻¹P'CPΩ⁻¹
-    C = model.storage_n_miss_n_miss_1
-    PΩ⁻¹ = model.storage_nd_nd_miss
-    PΩ⁻¹ .= @view Ω⁻¹[model.P, :]
-    copy!(model.storage_n_miss_n_obs_2,
-        view(PΩ⁻¹, (n_obs + 1):nd, 1:n_obs))
-    copy!(model.storage_n_miss_n_miss_2, 
-        view(PΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd))
     Ω⁻¹PtCPΩ⁻¹ = model.storage_nd_nd_miss
-    mul!(model.storage_n_miss_n_obs_3, C, model.storage_n_miss_n_obs_2)
-    mul!(view(Ω⁻¹PtCPΩ⁻¹, 1:n_obs, 1:n_obs), 
-        transpose(model.storage_n_miss_n_obs_2), model.storage_n_miss_n_obs_3)
-    mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, 1:n_obs), 
-        transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_obs_3)
-    mul!(model.storage_n_miss_n_miss_3, C, model.storage_n_miss_n_miss_2)
-    mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd), 
-        transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
-    copytri!(Ω⁻¹PtCPΩ⁻¹, 'L')
     # storage_d_d_miss = gradient of tr[Ω⁻¹P'CPΩ⁻¹(Σ[k]⊗V[k])] = the M*[k] matrix in manuscript
     kron_reduction!(Ω⁻¹PtCPΩ⁻¹, model.V[k], model.storage_d_d_miss, true)
     # storage_d_d_1 = gradient of tr[Ω⁻¹(Σ[k]⊗V[k])] = the M[k] matrix in manuscript
@@ -466,7 +472,7 @@ end
 
 Overwrite `model.storage_nd_nd` by inverse of the covariance 
 matrix `model.Ω`, overwrite `model.storage_nd` by `U' \\ vec(model.R)`, and 
-return the log-likelihood. This function assumes `model.Ω` and `model.R` are 
+return the log-likelihood. Assume `model.Ω` and `model.R` are 
 already updated according to `model.Σ` and `model.B`.
 """
 function loglikelihood!(
@@ -496,8 +502,8 @@ end
 Overwrite `model.storage_nd_nd` by inverse of the covariance matrix `model.Ω`, 
 overwrite `model.storage_nd` by `U' \\ vec(model.R)`, overwrite
 `model.storage_n_miss_n_miss_1` by conditional variance, and return the 
-surrogate of log-likelihood. This function assumes `model.Ω` and 
-`model.R` are already updated according to `model.Σ` and `model.B`.
+surrogate Q-function of log-likelihood. Assume `model.Ω` and `model.R` are already 
+updated according to `model.Σ` and `model.B`.
 """
 function loglikelihood_miss!(
     model::MRVCModel{T}

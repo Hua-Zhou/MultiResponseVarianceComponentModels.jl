@@ -46,6 +46,9 @@ Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
 # maximum likelihood estimation
 model = MRVCModel(Y, X, V)
 @timev fit!(model) # ~ 30 seconds
+# residual maximum likelihood estimation
+model = MRVCModel(Y, X, V; reml = true)
+@timev fit!(model) # ~ 30 seconds
 
 model.Σ
 reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
@@ -59,3 +62,4 @@ model.logl
 
 ## See also
 - J. Kim, J. Shen, A. Wang, D.V. Mehrotra, S. Ko, J.J. Zhou, and H. Zhou: **VCSEL: Prioritizing SNP-set by penalized variance component selection** (2021) ([link](http://doi.org/10.1214/21-aoas1491))
+- L. Hu, W. Lu, J. Zhou, and H. Zhou: **MM algorithms for variance component estimation and selection in logistic linear mixed models** (2019) ([link](http://doi.org/10.5705/ss.202017.0220))
