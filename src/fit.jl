@@ -388,10 +388,10 @@ function update_B_miss!(
     copy!(model.storage_n_miss, view(model.storage_nd_2, (n_obs + 1):nd))
     model.storage_n_obs .= model.Y_obs - model.storage_n_obs
     BLAS.gemv!('N', one(T), model.storage_n_miss_n_obs_1, model.storage_n_obs, one(T), model.storage_n_miss) # conditional mean
-    copyto!(model.storage_nd_2, Y_obs)
+    copyto!(model.storage_nd_2, model.Y_obs)
     copy!(view(model.storage_nd_2, (n_obs + 1):nd), model.storage_n_miss)
     model.storage_nd_1 .= @view model.storage_nd_2[model.invP]
-    copyto!(Y, model.storage_nd_1)
+    copyto!(model.Y, model.storage_nd_1)
     # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
     copyto!(model.storage_nd_1, model.Y)
     mul!(model.storage_nd_2, model.storage_nd_nd, model.storage_nd_1)
@@ -513,7 +513,7 @@ function loglikelihood_miss!(
     copy!(model.storage_n_miss_n_miss_1, 
         view(PΩ⁻¹Pt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
     # compute tr(PΩ⁻¹PtC) for surrogate function of log-likelihood
-    C = storage_n_miss_n_miss_1
+    C = model.storage_n_miss_n_miss_1
     PΩ⁻¹Pt .= @view Ω⁻¹[model.P, model.P]
     logl += dot(view(PΩ⁻¹Pt, (n_obs + 1):nd, (n_obs + 1):nd), C)
     logl /= -2

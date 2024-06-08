@@ -61,8 +61,8 @@ struct MRVCModel{T <: BlasReal}
     Bcov                    :: Union{Nothing, Matrix{T}} # for fisher_B!
     Σcov                    :: Union{Nothing, Matrix{T}} # for fisher_Σ!
     # permutation for missing response
-    P                       :: Union{Nothing, Vector{T}}
-    invP                    :: Union{Nothing, Vector{T}}
+    P                       :: Union{Nothing, Vector{Int}}
+    invP                    :: Union{Nothing, Vector{Int}}
     n_miss                  :: Int
     Y_obs                   :: Union{Nothing, Vector{T}}
     # working arrays for missing response
@@ -139,7 +139,7 @@ function MRVCModel(
     if any(ismissing, Y)
         @assert reml == false "only ML estimation is possible for missing response"
         @assert se == false "standard errors cannot be computed for missing response"
-        P, invperm(P), n_miss, Y_imputed = permute(Y)
+        P, invP, n_miss, Y = permute(Y)
         ymissing = true
         n_obs = nd - n_miss
         copyto!(storage_nd_1, Y)
@@ -231,51 +231,27 @@ function MRVCModel(
     storage_nd_nd    = Matrix{T}(undef, nd, nd)
     storage_pd_pd    = Matrix{T}(undef, pd, pd)
     logl             = zeros(T, 1)
-    if ymissing
-        MRVCModel{T}(
-            Y_imputed, Xmat, V,
-            B, Σ, Ω, Γ, Ψ, Σ_rank,
-            V_rank, R, Ω⁻¹R, xtx, xty,
-            storage_nd_1, storage_nd_2, storage_pd,
-            storage_n_d, storage_n_p, storage_p_d,
-            storage_d_d_1, storage_d_d_2, storage_d_d_3, 
-            storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
-            storage_p_p, storage_nd_nd, storage_pd_pd, logl,
-            storages_nd_nd, Bcov, Σcov,
-            P, invP, n_miss, Y_obs,
-            storage_n_miss_n_obs_1, storage_n_miss_n_obs_2,
-            storage_n_miss_n_obs_3, storage_n_miss_n_miss_1,
-            storage_n_miss_n_miss_2, storage_n_miss_n_miss_3,
-            storage_nd_nd_miss, storage_d_d_miss,
-            storage_n_obs, storage_n_miss,
-            Y_reml, X_reml, V_reml, B_reml, Ω_reml, R_reml,
-            storage_nd_nd_reml, storage_pd_pd_reml, storage_n_p_reml,
-            storage_nd_1_reml, storage_nd_2_reml, storage_n_d_reml,
-            storage_p_d_reml, storage_pd_reml, logl_reml, Bcov_reml,
-            se, reml, ymissing)    
-    else
-        MRVCModel{T}(
-            Y, Xmat, V,
-            B, Σ, Ω, Γ, Ψ, Σ_rank,
-            V_rank, R, Ω⁻¹R, xtx, xty,
-            storage_nd_1, storage_nd_2, storage_pd,
-            storage_n_d, storage_n_p, storage_p_d,
-            storage_d_d_1, storage_d_d_2, storage_d_d_3, 
-            storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
-            storage_p_p, storage_nd_nd, storage_pd_pd, logl,
-            storages_nd_nd, Bcov, Σcov,
-            P, invP, n_miss, Y_obs,
-            storage_n_miss_n_obs_1, storage_n_miss_n_obs_2,
-            storage_n_miss_n_obs_3, storage_n_miss_n_miss_1,
-            storage_n_miss_n_miss_2, storage_n_miss_n_miss_3,
-            storage_nd_nd_miss, storage_d_d_miss,
-            storage_n_obs, storage_n_miss,
-            Y_reml, X_reml, V_reml, B_reml, Ω_reml, R_reml,
-            storage_nd_nd_reml, storage_pd_pd_reml, storage_n_p_reml,
-            storage_nd_1_reml, storage_nd_2_reml, storage_n_d_reml,
-            storage_p_d_reml, storage_pd_reml, logl_reml, Bcov_reml,
-            se, reml, ymissing)
-    end
+    MRVCModel{T}(
+        Y, Xmat, V,
+        B, Σ, Ω, Γ, Ψ, Σ_rank,
+        V_rank, R, Ω⁻¹R, xtx, xty,
+        storage_nd_1, storage_nd_2, storage_pd,
+        storage_n_d, storage_n_p, storage_p_d,
+        storage_d_d_1, storage_d_d_2, storage_d_d_3, 
+        storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
+        storage_p_p, storage_nd_nd, storage_pd_pd, logl,
+        storages_nd_nd, Bcov, Σcov,
+        P, invP, n_miss, Y_obs,
+        storage_n_miss_n_obs_1, storage_n_miss_n_obs_2,
+        storage_n_miss_n_obs_3, storage_n_miss_n_miss_1,
+        storage_n_miss_n_miss_2, storage_n_miss_n_miss_3,
+        storage_nd_nd_miss, storage_d_d_miss,
+        storage_n_obs, storage_n_miss,
+        Y_reml, X_reml, V_reml, B_reml, Ω_reml, R_reml,
+        storage_nd_nd_reml, storage_pd_pd_reml, storage_n_p_reml,
+        storage_nd_1_reml, storage_nd_2_reml, storage_n_d_reml,
+        storage_p_d_reml, storage_pd_reml, logl_reml, Bcov_reml,
+        se, reml, ymissing)
 end
 
 MRVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
