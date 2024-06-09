@@ -89,6 +89,6 @@ Y_miss = Matrix{Union{eltype(Y), Missing}}(missing, size(Y))
 copy!(Y_miss, Y)
 Y_miss[rand(1:length(Y_miss), n)] .= missing
 
-model = MRVCModel(Y_miss, X, V, se = false)
+model = MRVCModel(Y_miss, X, V; se = false)
 @timev fit!(model)
 ```
