@@ -3,7 +3,7 @@ using MultiResponseVarianceComponentModels
 
 makedocs(
     modules = [MultiResponseVarianceComponentModels],
-    sitename = "MRVCModels.jl",
+    sitename = "MRVCModels",
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
         assets = String[],

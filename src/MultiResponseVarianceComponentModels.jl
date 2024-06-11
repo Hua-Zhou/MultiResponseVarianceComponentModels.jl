@@ -102,15 +102,13 @@ struct MRVCModel{T <: BlasReal}
 end
 
 """
-    MRVCModel(Y, X, V)
+    MRVCModel(
+        Y::AbstractVecOrMat,
+        X::Union{Nothing, AbstractVecOrMat},
+        V::Union{AbstractMatrix, Vector{<:AbstractMatrix}})
 
 Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`,
 and kernel matrices `V`.
-
-# Positional arguments
-- `Y::AbstractVecOrMat`                                : response matrix
-- `X::Union{Nothing, AbstractVecOrMat}`                : predictor matrix
-- `V::Union{AbstractMatrix, Vector{<:AbstractMatrix}}` : kernel matrices
 
 # Keyword arguments
 - `se::Bool`   : calculate standard errors. Default is `true`.

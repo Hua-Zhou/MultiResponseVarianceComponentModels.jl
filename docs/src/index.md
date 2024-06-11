@@ -2,7 +2,7 @@
 CurrentModule = MultiResponseVarianceComponentModels
 ```
 
-# MultiResponseVarianceComponentModels
+# MRVCModels
 
 [__MRVCModels.jl__](https://github.com/hua-zhou/MultiResponseVarianceComponentModels.jl) is a package for fitting and testing multivariate response variance components linear mixed models of form
 
