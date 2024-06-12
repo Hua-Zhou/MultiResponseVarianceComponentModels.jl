@@ -4,16 +4,15 @@
 Fit a multivariate response variance components model by MM or EM algorithm.
 
 # Keyword arguments
-- `maxiter::Integer` : maximum number of iterations. Default is `1000`.
-- `reltol::Real`     : relative tolerance for convergence. Default is `1e-6`.
-- `verbose::Bool`    : display algorithmic information. Default is `true`.
-- `init::Symbol`     : initialization strategy. `:default` initialize by least squares.
-    `:user` uses user supplied value at `model.B` and `model.Σ`.
-- `algo::Symbol`     : optimization algorithm. `:MM` (default) or `EM`.
-- `log::Bool`        : record iterate history or not. Defaut is `false`.
-
-# Output
-- `history`          : iterate history.
+```
+maxiter::Int        maximum number of iterations; default 1000
+reltol::Real        relative tolerance for convergence; default 1e-6
+verbose::Bool       display algorithmic information; default true
+init::Symbol        initialization strategy; :default initializes by least squares, while
+    :user uses user supplied value at model.B and model.Σ
+algo::Symbol        optimization algorithm; :MM (default) or EM
+log::Bool           record iterate history or not; default false
+```
 """
 function fit!(
     model   :: MRVCModel{T};
@@ -151,7 +150,7 @@ end
 
 Update the variance component parameters `model.Σ`, assuming inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`. For
-missing response, assume conditional variance `model.storage_n_miss_n_miss_1`
+missing response, also assume conditional variance `model.storage_n_miss_n_miss_1`
 is precomputed.
 """
 function update_Σ!(

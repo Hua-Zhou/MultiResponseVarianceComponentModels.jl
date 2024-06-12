@@ -105,14 +105,17 @@ end
     MRVCModel(
         Y::AbstractVecOrMat,
         X::Union{Nothing, AbstractVecOrMat},
-        V::Union{AbstractMatrix, Vector{<:AbstractMatrix}})
+        V::Union{AbstractMatrix, Vector{<:AbstractMatrix}}
+        )
 
 Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`,
 and kernel matrices `V`.
 
 # Keyword arguments
-- `se::Bool`   : calculate standard errors. Default is `true`.
-- `reml::Bool` : REML estimation instead of ML estimation. Default is `false`.
+```
+se::Bool        calculate standard errors; default true
+reml::Bool      REML estimation instead of ML estimation; default false
+```
 """
 function MRVCModel(
     Y      :: Union{AbstractMatrix{T}, AbstractMatrix{Union{Missing, T}}},
@@ -249,7 +252,8 @@ function MRVCModel(
         storage_nd_nd_reml, storage_pd_pd_reml, storage_n_p_reml,
         storage_nd_1_reml, storage_nd_2_reml, storage_n_d_reml,
         storage_p_d_reml, storage_pd_reml, logl_reml, Bcov_reml,
-        se, reml, ymissing)
+        se, reml, ymissing
+        )
 end
 
 MRVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
