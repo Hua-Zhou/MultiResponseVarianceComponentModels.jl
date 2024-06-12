@@ -1,7 +1,7 @@
 name = "MultiResponseVarianceComponentModels"
 uuid = "95bd6349-d788-4b5f-978d-e543c2eb4d7d"
 authors = ["Hua Zhou <huazhou@ucla.edu> and Minsoo Kim <mmkim1210@gmail.com>"]
-version = "0.1.0"
+version = "0.3.0"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
