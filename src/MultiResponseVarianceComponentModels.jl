@@ -114,7 +114,7 @@ and kernel matrices `V`.
 # Keyword arguments
 ```
 se::Bool        calculate standard errors; default true
-reml::Bool      REML estimation instead of ML estimation; default false
+reml::Bool      pursue REML estimation instead of ML estimation; default false
 ```
 """
 function MRVCModel(

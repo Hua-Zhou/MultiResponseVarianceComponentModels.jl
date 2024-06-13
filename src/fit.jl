@@ -9,7 +9,7 @@ maxiter::Int        maximum number of iterations; default 1000
 reltol::Real        relative tolerance for convergence; default 1e-6
 verbose::Bool       display algorithmic information; default true
 init::Symbol        initialization strategy; :default initializes by least squares, while
-    :user uses user supplied value at model.B and model.Σ
+    :user uses user supplied values at model.B and model.Σ
 algo::Symbol        optimization algorithm; :MM (default) or EM
 log::Bool           record iterate history or not; default false
 ```
@@ -149,8 +149,8 @@ end
     update_Σ!(model::MRVCModel)
 
 Update the variance component parameters `model.Σ`, assuming inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`. For
-missing response, also assume conditional variance `model.storage_n_miss_n_miss_1`
+covariance matrix `model.Ω` is available at `model.storage_nd_nd`. If
+missing response, assume conditional variance `model.storage_n_miss_n_miss_1`
 is precomputed.
 """
 function update_Σ!(
@@ -206,7 +206,7 @@ end
 
 MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
-`model.Ω⁻¹R` precomputed.
+`model.Ω⁻¹R` is precomputed.
 """
 function update_Σk!(
     model :: MRVCModel{T},
@@ -252,9 +252,9 @@ end
     update_Σk_miss!(model::MRVCModel, k, Val(:MM))
 
 MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and
-`model.Ω⁻¹R`, conditional variance `model.storage_n_miss_n_miss_1`, and
-Ω⁻¹P'CPΩ⁻¹ precomputed.
+covariance matrix `model.Ω` is available at `model.storage_nd_nd`, 
+`model.Ω⁻¹R` is precomputed, and Ω⁻¹P'CPΩ⁻¹ is available at
+`model.storage_nd_nd_miss`.
 """
 function update_Σk_miss!(
     model :: MRVCModel{T},
@@ -305,7 +305,7 @@ end
 
 EM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
-`model.Ω⁻¹R` precomputed.
+`model.Ω⁻¹R` is precomputed.
 """
 function update_Σk!(
     model :: MRVCModel{T},
@@ -378,8 +378,8 @@ end
     update_B_miss!(model::MRVCModel)
 
 Update the regression coefficients `model.B`, assuming inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd` and
-conditional covariance `model.storage_n_miss_n_obs_1` precomputed.
+covariance matrix `model.Ω` is available at `model.storage_nd_nd` and 
+`model.storage_n_miss_n_obs_1` for conditional mean is precomputed.
 """
 function update_B_miss!(
     model :: MRVCModel{T}
@@ -500,7 +500,8 @@ end
 
 Overwrite `model.storage_nd_nd` by inverse of the covariance matrix `model.Ω`, 
 overwrite `model.storage_nd` by `U' \\ vec(model.R)`, overwrite
-`model.storage_n_miss_n_miss_1` by conditional variance, and return the 
+`model.storage_n_miss_n_miss_1` by conditional variance, precompute 
+`model.storage_n_miss_n_obs_1` for conditional mean, and return the value of
 surrogate Q-function of log-likelihood. Assume `model.Ω` and `model.R` are already 
 updated according to `model.Σ` and `model.B`.
 """
@@ -602,7 +603,7 @@ end
 """
     fisher_B!(model::MRVCModel)
 
-Compute the sampling variance-covariance of regression coefficients `model.B`, 
+Compute the sampling variance-covariance `model.Bcov` of regression coefficients `model.B`, 
 assuming inverse of covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function fisher_B!(
