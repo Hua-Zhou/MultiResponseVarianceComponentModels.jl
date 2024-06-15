@@ -655,7 +655,7 @@ end
 """
     fisher_Σ!(model::MRVCModel)
 
-Compute the sampling variance-covariance of variance component estimates `model.Σ`, 
+Compute the sampling variance-covariance `model.Σcov` of variance component estimates `model.Σ`, 
 assuming inverse of covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function fisher_Σ!(
