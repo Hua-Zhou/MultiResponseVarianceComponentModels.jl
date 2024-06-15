@@ -18,7 +18,7 @@ where ``\boldsymbol{Y}`` and ``\boldsymbol{X}`` are ``n \times d`` response and 
 
 !!! warning
 
-    [MRVCModels.jl](https://github.com/hua-zhou/MultiResponseVarianceComponentModels.jl) is not suitable for biobank-scale data. We recommend using this package for datasets of size up to ``n \cdot d \approx 60000``. We further note that number of ``m`` can affect memory required when calculating standard errors, as it will need ``m(nd)^2`` storage space for double-precision floating-point numbers.
+    [MRVCModels.jl](https://github.com/hua-zhou/MultiResponseVarianceComponentModels.jl) is not suitable for biobank-scale data. We recommend using this package for datasets of size up to ``n \cdot d \approx 60000``. Further note that ``m`` can affect memory required when calculating standard errors, since it will need ``m(nd)^2`` storage space.
 
 # Installation
 
