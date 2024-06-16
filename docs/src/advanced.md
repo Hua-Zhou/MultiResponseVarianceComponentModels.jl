@@ -55,3 +55,20 @@ When there are ``m = 2`` variance components such that ``\boldsymbol{\Omega} = \
 ```
 
 where ``\tilde{\boldsymbol{X}} = \boldsymbol{U}^T \boldsymbol{X}``, ``\tilde{\boldsymbol{Y}} = \boldsymbol{U}^T \boldsymbol{Y}``, ``\boldsymbol{L}_1^{(t)}`` is the Cholesky factor of ``\boldsymbol{\Phi}^{(t)}\text{diag}(\text{tr}(\boldsymbol{D}(\lambda_k^{(t)}\boldsymbol{D} + \boldsymbol{I}_n)^{-1}), k = 1,\dots, d)\boldsymbol{\Phi}^{(t)T}``, ``\boldsymbol{L}_2^{(t)}`` is the Cholesky factor of ``\boldsymbol{\Phi}^{(t)}\text{diag}(\text{tr}((\lambda_k^{(t)}\boldsymbol{D} + \boldsymbol{I}_n)^{-1}), k = 1,\dots, d)\boldsymbol{\Phi}^{(t)T}``, ``\boldsymbol{N}_1^{(t)} = \boldsymbol{D}^{1/2}\{[(\tilde{\boldsymbol{Y}} - \tilde{\boldsymbol{X}}\boldsymbol{B})\boldsymbol{\Phi}^{(t)}]\oslash(\boldsymbol{d}\boldsymbol{\lambda}^{(t)T} + \boldsymbol{1}_n\boldsymbol{1}_d^T) \} \boldsymbol{\Lambda}^{(t)}\boldsymbol{\Phi}^{-(t)}``, and ``\boldsymbol{N}_2^{(t)} = \{[(\tilde{\boldsymbol{Y}} - \tilde{\boldsymbol{X}}\boldsymbol{B})\boldsymbol{\Phi}^{(t)}]\oslash(\boldsymbol{d}\boldsymbol{\lambda}^{(t)T} + \boldsymbol{1}_n\boldsymbol{1}_d^T) \} \boldsymbol{\Phi}^{-(t)}``. ``\oslash`` denotes the Hadamard quotient.
+
+In this setting, the Fisher information matrix is equivalent to
+```math
+\begin{aligned}
+\text{E} \left[- \frac{\partial^2}{\partial(\text{vec}\ \boldsymbol{B})^T \partial(\text{vec}\ \boldsymbol{B})} \mathcal{L} \right] =& (\boldsymbol{\Phi}^{T}\otimes \tilde{\boldsymbol{X}})^T (\boldsymbol{\Lambda} \otimes \boldsymbol{D} + \boldsymbol{I}_d \otimes \boldsymbol{I}_n)^{-1} (\boldsymbol{\Phi}^{T}\otimes \tilde{\boldsymbol{X}}) \\
+\text{E} \left[ - \frac{\partial^2}{\partial (\text{vech} \ \boldsymbol{\Gamma}_i)^T \partial (\text{vec}\ \boldsymbol{B})} \mathcal{L} \right] =& \boldsymbol{0} \\
+\text{E} \left[ - \frac{\partial^2}{\partial (\text{vech}\ \boldsymbol{\Gamma}_j)^T \partial (\text{vech}\ \boldsymbol{\Gamma}_i)} \mathcal{L} \right] =& \frac{1}{2} \boldsymbol{D}_d^T(\boldsymbol{\Phi}\otimes \boldsymbol{\Phi}) \text{diag}(\text{vec}(\boldsymbol{W}_{ij})) (\boldsymbol{\Phi}\otimes \boldsymbol{\Phi})^T\boldsymbol{D}_d,
+\end{aligned}
+```
+where ``\boldsymbol{W}_{ij}`` is the ``d \times d`` matrix that has entries
+```math
+\begin{aligned}
+(\boldsymbol{W}_{11})_{kl} = \text{tr}(\boldsymbol{D}^2(\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
+(\boldsymbol{W}_{12})_{kl} = \text{tr}(\boldsymbol{D}(\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
+(\boldsymbol{W}_{22})_{kl} = \text{tr}((\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}).
+\end{aligned}
+```
