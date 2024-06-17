@@ -49,7 +49,8 @@ When there are ``m = 2`` variance components such that ``\boldsymbol{\Omega} = \
 
 ```math
 \begin{aligned}
-\text{vec}\ \boldsymbol{B}^{(t)} &= [(\boldsymbol{\Phi}^{(t)T}\otimes \tilde{\boldsymbol{X}})^T (\boldsymbol{\Lambda}^{(t)} \otimes \boldsymbol{D} + \boldsymbol{I}_d \otimes \boldsymbol{I}_n)^{-1} (\boldsymbol{\Phi}^{(t)T}\otimes \tilde{\boldsymbol{X}})]^{-1} (\boldsymbol{\Phi}^{(t)T}\otimes \tilde{\boldsymbol{X}})^T (\boldsymbol{\Lambda}^{(t)} \otimes \boldsymbol{D} + \boldsymbol{I}_d \otimes \boldsymbol{I}_n)^{-1} \text{vec}(\tilde{\boldsymbol{Y}} \boldsymbol{\Phi}^{(t)}) \\
+\text{vec}\ \boldsymbol{B}^{(t)} &= [(\boldsymbol{\Phi}^{(t)T}\otimes \tilde{\boldsymbol{X}})^T (\boldsymbol{\Lambda}^{(t)} \otimes \boldsymbol{D} + \boldsymbol{I}_d \otimes \boldsymbol{I}_n)^{-1} (\boldsymbol{\Phi}^{(t)T}\otimes \tilde{\boldsymbol{X}})]^{-1} \\
+&\quad \cdot (\boldsymbol{\Phi}^{(t)T}\otimes \tilde{\boldsymbol{X}})^T (\boldsymbol{\Lambda}^{(t)} \otimes \boldsymbol{D} + \boldsymbol{I}_d \otimes \boldsymbol{I}_n)^{-1} \text{vec}(\tilde{\boldsymbol{Y}} \boldsymbol{\Phi}^{(t)}) \\
 \boldsymbol{\Gamma}_i^{(t + 1)} &= \boldsymbol{L}_i^{-(t)T}[\boldsymbol{L}_i^{(t)T}\boldsymbol{N}_i^{(t)T}\boldsymbol{N}_i^{(t)}\boldsymbol{L}_i^{(t)}]^{1/2} \boldsymbol{L}_i^{-(t)},
 \end{aligned}
 ```
@@ -59,16 +60,16 @@ where ``\tilde{\boldsymbol{X}} = \boldsymbol{U}^T \boldsymbol{X}``, ``\tilde{\bo
 In this setting, the Fisher information matrix is equivalent to
 ```math
 \begin{aligned}
-\text{E} \left[- \frac{\partial^2}{\partial(\text{vec}\ \boldsymbol{B})^T \partial(\text{vec}\ \boldsymbol{B})} \mathcal{L} \right] =& (\boldsymbol{\Phi}^{T}\otimes \tilde{\boldsymbol{X}})^T (\boldsymbol{\Lambda} \otimes \boldsymbol{D} + \boldsymbol{I}_d \otimes \boldsymbol{I}_n)^{-1} (\boldsymbol{\Phi}^{T}\otimes \tilde{\boldsymbol{X}}) \\
-\text{E} \left[ - \frac{\partial^2}{\partial (\text{vech} \ \boldsymbol{\Gamma}_i)^T \partial (\text{vec}\ \boldsymbol{B})} \mathcal{L} \right] =& \boldsymbol{0} \\
-\text{E} \left[ - \frac{\partial^2}{\partial (\text{vech}\ \boldsymbol{\Gamma}_j)^T \partial (\text{vech}\ \boldsymbol{\Gamma}_i)} \mathcal{L} \right] =& \frac{1}{2} \boldsymbol{D}_d^T(\boldsymbol{\Phi}\otimes \boldsymbol{\Phi}) \text{diag}(\text{vec}(\boldsymbol{W}_{ij})) (\boldsymbol{\Phi}\otimes \boldsymbol{\Phi})^T\boldsymbol{D}_d,
+\text{E} \left[- \frac{\partial^2}{\partial(\text{vec}\ \boldsymbol{B})^T \partial(\text{vec}\ \boldsymbol{B})} \mathcal{L} \right] &= (\boldsymbol{\Phi}^{T}\otimes \tilde{\boldsymbol{X}})^T (\boldsymbol{\Lambda} \otimes \boldsymbol{D} + \boldsymbol{I}_d \otimes \boldsymbol{I}_n)^{-1} (\boldsymbol{\Phi}^{T}\otimes \tilde{\boldsymbol{X}}) \\
+\text{E} \left[ - \frac{\partial^2}{\partial (\text{vech} \ \boldsymbol{\Gamma}_i)^T \partial (\text{vec}\ \boldsymbol{B})} \mathcal{L} \right] &= \boldsymbol{0} \\
+\text{E} \left[ - \frac{\partial^2}{\partial (\text{vech}\ \boldsymbol{\Gamma}_j)^T \partial (\text{vech}\ \boldsymbol{\Gamma}_i)} \mathcal{L} \right] &= \frac{1}{2} \boldsymbol{D}_d^T(\boldsymbol{\Phi}\otimes \boldsymbol{\Phi}) \text{diag}(\text{vec}\ \boldsymbol{W}_{ij}) (\boldsymbol{\Phi} \otimes \boldsymbol{\Phi})^T\boldsymbol{D}_d,
 \end{aligned}
 ```
 where ``\boldsymbol{W}_{ij}`` is the ``d \times d`` matrix that has entries
 ```math
 \begin{aligned}
-(\boldsymbol{W}_{11})_{kl} = \text{tr}(\boldsymbol{D}^2(\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
-(\boldsymbol{W}_{12})_{kl} = \text{tr}(\boldsymbol{D}(\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
-(\boldsymbol{W}_{22})_{kl} = \text{tr}((\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}).
+(\boldsymbol{W}_{11})_{kl} &= \text{tr}(\boldsymbol{D}^2(\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
+(\boldsymbol{W}_{12})_{kl} &= \text{tr}(\boldsymbol{D}(\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
+(\boldsymbol{W}_{22})_{kl} &= \text{tr}((\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}).
 \end{aligned}
 ```
