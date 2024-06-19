@@ -127,13 +127,13 @@ function MRVCModel(
     ) where T <: BlasReal
     if X === nothing
         reml = false # REML = MLE in this case
-        Xmat = Matrix{T}(undef, n, 0)
+        Xmat = Matrix{T}(undef, size(Y, 1), 0)
     else
         Xmat = X
     end
-    @assert size(Y, 1) == size(X, 1) == size(V[1], 1)
+    @assert size(Y, 1) == size(Xmat, 1) == size(V[1], 1)
     # define dimesions
-    n, p, d, m = size(Y, 1), size(X, 2), size(Y, 2), length(V)
+    n, p, d, m = size(Y, 1), size(Xmat, 2), size(Y, 2), length(V)
     nd, pd = n * d, p * d
     storage_nd_1 = Vector{T}(undef, nd)
     storage_nd_2 = Vector{T}(undef, nd)
