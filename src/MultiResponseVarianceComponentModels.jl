@@ -1,7 +1,6 @@
 """
-`MultiResponseVarianceComponentModels.jl` or `MRVCModels.jl` permits maximum
-likelihood (ML) and residual maximum likelihood (REML) estimation as well as inference
-for multivariate response variance components linear mixed models.
+`MRVCModels.jl` permits maximum likelihood (ML) and residual maximum likelihood (REML) estimation 
+as well as inference for multivariate response variance components linear mixed models.
 """
 module MultiResponseVarianceComponentModels
 
@@ -113,7 +112,7 @@ end
     MRTVCModel(
         Y::AbstractVecOrMat,
         X::Union{Nothing, AbstractVecOrMat},
-        V::Union{AbstractMatrix, Vector{<:AbstractMatrix}}
+        V::Vector{<:AbstractMatrix}
         )
 
 Create a new `MRVCModel` or `MRTVCModel` instance from response matrix `Y`, 
@@ -295,7 +294,7 @@ struct MRTVCModel{T <: BlasReal} <: VCModel
     V                       :: Vector{Matrix{T}}
     U                       :: Matrix{T}
     D                       :: Vector{T}
-    logdetV2                :: Vector{T}
+    logdetV2                :: T
     # parameters
     B                       :: Matrix{T}
     Σ                       :: Vector{Matrix{T}}
@@ -405,7 +404,7 @@ function MRTVCModel(
         Bcov = Σcov = Bcov_reml = nothing
     end
     D, U = eigen(Symmetric(V[1]), Symmetric(V[2]))
-    logdetV2 = [logdet(V[2])]
+    logdetV2 = logdet(V[2])
     Ỹ = transpose(U) * Y
     X̃ = p == 0 ? Matrix{T}(undef, n, 0) : transpose(U) * Xmat
     # parameters
@@ -447,6 +446,21 @@ function MRTVCModel(
         se, reml
         )
 end
+
+MRTVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+    MRTVCModel(Y, reshape(x, length(x), 1), V; kwargs...)
+
+MRTVCModel(y::AbstractVector, X::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) = 
+    MRTVCModel(reshape(y, length(y), 1), X, V; kwargs...)
+
+MRTVCModel(y::AbstractVector, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+    MRTVCModel(reshape(y, length(y), 1), reshape(x, length(x), 1), V; kwargs...)
+
+MRTVCModel(Y::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) = 
+    MRTVCModel(Y, nothing, V; kwargs...)
+
+MRTVCModel(y::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+    MRTVCModel(reshape(y, length(y), 1), nothing, V; kwargs...)
 
 function Base.show(io::IO, model::VCModel)
     if model.reml
