@@ -22,7 +22,9 @@ export fit!,
     rg,
     permute
 
-struct MRVCModel{T <: BlasReal}
+abstract type VCModel end
+
+struct MRVCModel{T <: BlasReal} <: VCModel
     # data
     Y                       :: Matrix{T}
     X                       :: Matrix{T}
@@ -284,30 +286,7 @@ MRVCModel(Y, V::AbstractMatrix; kwargs...) = MRVCModel(Y, [V]; kwargs...)
 
 const MultiResponseVarianceComponentModel = MRVCModel
 
-function Base.show(io::IO, model::MRVCModel)
-    if model.reml
-        n, d, p, m = size(model.Y_reml, 1), size(model.Y_reml, 2), size(model.X_reml, 2), length(model.V_reml)
-    else
-        n, d, p, m = size(model.Y, 1), size(model.Y, 2), size(model.X, 2), length(model.V)
-    end
-    if d == 1
-        printstyled(io, "A univariate response variance component model\n"; underline = true)
-    elseif d == 2
-        printstyled(io, "A bivariate response variance component model\n"; underline = true)
-    else
-        printstyled(io, "A multivariate response variance component model\n"; underline = true)
-    end
-    print(io, "   * number of responses: ")
-    printstyled(io, "$d\n"; color = :yellow)
-    print(io, "   * number of observations: ")
-    printstyled(io, "$n\n"; color = :yellow)
-    print(io, "   * number of fixed effects: ")
-    printstyled(io, "$p\n"; color = :yellow)
-    print(io, "   * number of variance components: ")
-    printstyled(io, "$m"; color = :yellow)
-end
-
-struct MRTVCModel{T <: BlasReal}
+struct MRTVCModel{T <: BlasReal} <: VCModel
     # data
     Y                       :: Matrix{T}
     Ỹ                       :: Matrix{T}
@@ -467,6 +446,29 @@ function MRTVCModel(
         storage_p_d_reml, storage_pd_reml, logl_reml, Bcov_reml,
         se, reml
         )
+end
+
+function Base.show(io::IO, model::VCModel)
+    if model.reml
+        n, d, p, m = size(model.Y_reml, 1), size(model.Y_reml, 2), size(model.X_reml, 2), length(model.V_reml)
+    else
+        n, d, p, m = size(model.Y, 1), size(model.Y, 2), size(model.X, 2), length(model.V)
+    end
+    if d == 1
+        printstyled(io, "A univariate response variance component model\n"; underline = true)
+    elseif d == 2
+        printstyled(io, "A bivariate response variance component model\n"; underline = true)
+    else
+        printstyled(io, "A multivariate response variance component model\n"; underline = true)
+    end
+    print(io, "   * number of responses: ")
+    printstyled(io, "$d\n"; color = :yellow)
+    print(io, "   * number of observations: ")
+    printstyled(io, "$n\n"; color = :yellow)
+    print(io, "   * number of fixed effects: ")
+    printstyled(io, "$p\n"; color = :yellow)
+    print(io, "   * number of variance components: ")
+    printstyled(io, "$m"; color = :yellow)
 end
 
 include("multivariate_calculus.jl")

@@ -41,30 +41,21 @@ function fit!(
         for k in 1:2
             model.Σ[k] .= inv(tr(model.V[k])) .* model.storage_d_d_1
         end
-        copy!(model.storage_d_d_1, model.Σ[1])
-        copy!(model.storage_d_d_2, model.Σ[2])
-        Λ, Φ = eigen!(Symmetric(model.storage_d_d_1), Symmetric(model.storage_d_d_2))
-        copy!(model.Λ, Λ)
-        copy!(model.Φ, Φ)
-        copyto!(model.logdetΣ2, logdet(model.Σ[2]))
-        mul!(model.ỸΦ, model.Ỹ, model.Φ)
-        mul!(model.BΦ, model.B, model.Φ)
-        update_res!(model) # update R̃Φ
+        update_Φ!(model)
+        update_res!(model)
     elseif init == :user
-        copy!(model.storage_d_d_1, model.Σ[1])
-        copy!(model.storage_d_d_2, model.Σ[2])
-        Λ, Φ = eigen!(Symmetric(model.storage_d_d_1), Symmetric(model.storage_d_d_2))
-        copy!(model.Λ, Λ)
-        copy!(model.Φ, Φ)
-        copyto!(model.logdetΣ2, logdet(model.Σ[2]))
-        mul!(model.ỸΦ, model.Ỹ, model.Φ)
-        mul!(model.BΦ, model.B, model.Φ)
-        update_res!(model) # update R̃Φ
+        update_Φ!(model)
+        update_res!(model)        
     else
         throw("Cannot recognize initialization method $init")
     end
     logl = loglikelihood!(model)
     toc = time()
+    verbose && println("iter = 0, logl = $logl")
+    IterativeSolvers.nextiter!(history)
+    push!(history, :iter    , 0)
+    push!(history, :logl    , logl)
+    push!(history, :itertime, toc - tic)
     # MM loop
     for iter in 1:maxiter
         IterativeSolvers.nextiter!(history)
@@ -72,6 +63,8 @@ function fit!(
         # initial estiamte of Σ[i] can be lousy, so we update Σ[i] first in the 1st round
         p > 0 && iter > 1 && update_B!(model)
         update_Σ!(model)
+        update_Φ!(model)
+        update_res!(model)
         logl_prev = logl
         logl = loglikelihood!(model)
         toc = time()
@@ -157,7 +150,7 @@ function update_Σ!(
     end
     lmul!(Diagonal(one(T) ./ model.storage_d_1), vecs)
     mul!(model.storage_d_d_1, transpose(Φinv), vecs)
-    mul!(model.Σ[1], transpose(model.storage_d_d_1), model.storage_d_d_1)
+    mul!(model.Σ[1], model.storage_d_d_1, transpose(model.storage_d_d_1))
     # update Σ[2]
     lmul!(Diagonal(model.storage_d_2), model.N2tN2)
     rmul!(model.N2tN2, Diagonal(model.storage_d_2))
@@ -176,8 +169,13 @@ function update_Σ!(
     end
     lmul!(Diagonal(one(T) ./ model.storage_d_2), vecs)
     mul!(model.storage_d_d_1, transpose(Φinv), vecs)
-    mul!(model.Σ[2], transpose(model.storage_d_d_1), model.storage_d_d_1)
-    # update parameters
+    mul!(model.Σ[2], model.storage_d_d_1, transpose(model.storage_d_d_1))
+    model.Σ
+end
+
+function update_Φ!(
+    model :: MRTVCModel{T};
+    ) where T <: BlasReal
     copy!(model.storage_d_d_1, model.Σ[1])
     copy!(model.storage_d_d_2, model.Σ[2])
     Λ, Φ = eigen!(Symmetric(model.storage_d_d_1), Symmetric(model.storage_d_d_2))
@@ -186,8 +184,30 @@ function update_Σ!(
     copyto!(model.logdetΣ2, logdet(model.Σ[2]))
     mul!(model.ỸΦ, model.Ỹ, model.Φ)
     mul!(model.BΦ, model.B, model.Φ)
-    update_res!(model) # update R̃Φ
-    model.Σ
+end
+
+function update_res!(
+    model :: MRTVCModel{T}
+    ) where T <: BlasReal
+    # update R̃Φ = (Ỹ - X̃B)Φ
+    BLAS.gemm!('N', 'N', -one(T), model.X̃, model.BΦ, one(T), copyto!(model.R̃Φ, model.ỸΦ))
+    model.R̃Φ
+end
+
+function loglikelihood!(
+    model :: MRTVCModel{T}
+    ) where T <: BlasReal
+    n, d = size(model.Ỹ, 1), size(model.Ỹ, 2)
+    # assemble pieces for log-likelihood
+    logl = n * d * log(2π) + n * model.logdetΣ2[1] + d * model.logdetV2[1]
+    @inbounds for j in 1:d
+        λj = model.Λ[j]
+        @simd for i in 1:n
+            tmp = model.D[i] * λj + one(T)
+            logl += log(tmp) + inv(tmp) * model.R̃Φ[i, j]^2
+        end
+    end
+    logl /= -2  
 end
 
 function update_B!(
@@ -216,30 +236,6 @@ function update_B!(
     model.B
 end
 
-function loglikelihood!(
-    model :: MRTVCModel{T}
-    ) where T <: BlasReal
-    n, d = size(model.Ỹ, 1), size(model.Ỹ, 2)
-    # assemble pieces for log-likelihood
-    logl = n * d * log(2π) + n * model.logdetΣ2[1] + d * model.logdetV2[1]
-    @inbounds for j in 1:d
-        λj = model.Λ[j]
-        @simd for i in 1:n
-            tmp = model.D[i] * λj + one(T)
-            logl += log(tmp) + inv(tmp) * model.R̃Φ[i, j]^2
-        end
-    end
-    logl /= -2  
-end
-
-function update_res!(
-    model :: MRTVCModel{T}
-    ) where T <: BlasReal
-    # update R̃Φ = (Ỹ - X̃B)Φ
-    BLAS.gemm!('N', 'N', -one(T), model.X̃, model.BΦ, one(T), copyto!(model.R̃Φ, model.ỸΦ))
-    model.R̃Φ
-end
-
 function fisher_B!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
@@ -252,7 +248,7 @@ function fisher_B!(
     end
     lmul!(Diagonal(model.storage_nd_1), model.storage_nd_pd)
     mul!(model.storage_pd_pd, transpose(model.storage_nd_pd), model.storage_nd_pd)
-    copyto!(model.Bcov, pinv(storage_pd_pd))
+    copyto!(model.Bcov, pinv(model.storage_pd_pd))
 end
 
 function fisher_Σ!(
@@ -301,7 +297,7 @@ function fisher_Σ!(
         idx1 = Int(d * (d + 1) / 2 * (i - 1) + 1)
         idx2 = Int(d * (d + 1) / 2 * i)
         idx5, idx6 = d^2 * (i - 1) + 1, d^2 * i
-        for j in i:m
+        for j in i:2
             idx3 = Int(d * (d + 1) / 2 * (j - 1) + 1)
             idx4 = Int(d * (d + 1) / 2 * j)
             idx7, idx8 = d^2 * (j - 1) + 1, d^2 * j
