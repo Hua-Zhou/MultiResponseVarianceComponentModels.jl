@@ -325,20 +325,23 @@ struct MRTVCModel{T <: BlasReal} <: VCModel
     Σcov                    :: Union{Nothing, Matrix{T}} # for fisher_Σ!
     # original data for reml
     Y_reml                  :: Union{Nothing, Matrix{T}}
+    Ỹ_reml                  :: Union{Nothing, Matrix{T}}
     X_reml                  :: Union{Nothing, Matrix{T}}
+    X̃_reml                  :: Union{Nothing, Matrix{T}}
     V_reml                  :: Union{Nothing, Vector{Matrix{T}}}
+    U_reml                  :: Union{Nothing, Matrix{T}}
+    D_reml                  :: Union{Nothing, Vector{T}}
+    logdetV2_reml           :: Union{Nothing, T}
     # fixed effects parameters for reml
     B_reml                  :: Union{Nothing, Matrix{T}}
     # working arrays for reml
-    Ω_reml                  :: Union{Nothing, Matrix{T}}
-    R_reml                  :: Union{Nothing, Matrix{T}}
-    storage_nd_nd_reml      :: Union{Nothing, Matrix{T}}
-    storage_pd_pd_reml      :: Union{Nothing, Matrix{T}}
-    storage_n_p_reml        :: Union{Nothing, Matrix{T}}
+    ỸΦ_reml                 :: Union{Nothing, Matrix{T}}
+    R̃_reml                  :: Union{Nothing, Matrix{T}}
+    R̃Φ_reml                 :: Union{Nothing, Matrix{T}}
+    storage_nd_pd_reml      :: Union{Nothing, Matrix{T}}
     storage_nd_1_reml       :: Union{Nothing, Vector{T}}
     storage_nd_2_reml       :: Union{Nothing, Vector{T}}
-    storage_n_d_reml        :: Union{Nothing, Matrix{T}}
-    storage_p_d_reml        :: Union{Nothing, Matrix{T}}
+    storage_pd_pd_reml      :: Union{Nothing, Matrix{T}}
     storage_pd_reml         :: Union{Nothing, Vector{T}}
     logl_reml               :: Union{Nothing, Vector{T}}
     Bcov_reml               :: Union{Nothing, Matrix{T}}
@@ -376,25 +379,26 @@ function MRTVCModel(
         n, p = size(Y, 1), 0
         nd, pd = n * d, p * d
         nd_reml, pd_reml = n_reml * d, p_reml * d
+        D_reml, U_reml = eigen(Symmetric(V_reml[1]), Symmetric(V_reml[2]))
+        logdetV2_reml = logdet(V_reml[2])
+        Ỹ_reml = transpose(U_reml) * Y_reml
+        X̃_reml = transpose(U_reml) * X_reml
         B_reml             = Matrix{T}(undef, p_reml, d)
-        Ω_reml             = Matrix{T}(undef, nd_reml, nd_reml)
-        R_reml             = Matrix{T}(undef, n_reml, d)
-        storage_nd_nd_reml = Matrix{T}(undef, nd_reml, nd_reml)
-        storage_pd_pd_reml = Matrix{T}(undef, pd_reml, pd_reml)
-        storage_n_p_reml   = Matrix{T}(undef, n_reml, p_reml)
+        ỸΦ_reml            = Matrix{T}(undef, n_reml, d)
+        R̃_reml             = Matrix{T}(undef, n_reml, d)
+        R̃Φ_reml            = Matrix{T}(undef, n_reml, d)
+        storage_nd_pd_reml = Matrix{T}(undef, nd_reml, pd_reml)
         storage_nd_1_reml  = Vector{T}(undef, nd_reml)
         storage_nd_2_reml  = Vector{T}(undef, nd_reml)
-        storage_n_d_reml   = Matrix{T}(undef, n_reml, d)
-        storage_p_d_reml   = Matrix{T}(undef, p_reml, d)
+        storage_pd_pd_reml = Matrix{T}(undef, pd_reml, pd_reml)
         storage_pd_reml    = Vector{T}(undef, pd_reml)
-        logl_reml          = zeros(T, 1)
+        logl_reml          = zeros(T, 1)    
     else
-        Y_reml = X_reml = V_reml = B_reml = Ω_reml = R_reml = 
-            storage_nd_nd_reml = storage_pd_pd_reml = 
-            storage_n_p_reml = storage_nd_1_reml = 
-            storage_nd_2_reml = storage_n_d_reml = 
-            storage_p_d_reml = storage_pd_reml = 
-            logl_reml = Bcov_reml = nothing
+        Y_reml = Ỹ_reml = X_reml = X̃_reml = V_reml = U_reml = D_reml =
+            logdetV2_reml = B_reml = ỸΦ_reml = R̃_reml = R̃Φ_reml =
+            storage_nd_pd_reml = storage_nd_1_reml = 
+            storage_nd_2_reml = storage_pd_pd_reml = storage_pd_reml = 
+            logl_reml = Bcov_reml = nothing        
     end
     if se
         Bcov           = Matrix{T}(undef, pd, pd)
@@ -439,11 +443,11 @@ function MRTVCModel(
         storage_d_1, storage_d_2, storage_d_d_1, storage_d_d_2,
         storage_p_p, storage_pd, storage_pd_pd, 
         storage_nd_1, storage_nd_2, storage_nd_pd, logl, Bcov, Σcov,
-        Y_reml, X_reml, V_reml, B_reml, Ω_reml, R_reml,
-        storage_nd_nd_reml, storage_pd_pd_reml, storage_n_p_reml,
-        storage_nd_1_reml, storage_nd_2_reml, storage_n_d_reml,
-        storage_p_d_reml, storage_pd_reml, logl_reml, Bcov_reml,
-        se, reml
+        Y_reml, Ỹ_reml, X_reml, X̃_reml, V_reml, U_reml, D_reml,
+        logdetV2_reml, B_reml, ỸΦ_reml, R̃_reml, R̃Φ_reml,
+        storage_nd_pd_reml, storage_nd_1_reml, 
+        storage_nd_2_reml, storage_pd_pd_reml, storage_pd_reml,
+        logl_reml, Bcov_reml, se, reml
         )
 end
 

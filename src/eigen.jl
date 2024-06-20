@@ -95,13 +95,13 @@ function fit!(
             break
         end
     end
-    # if model.reml
-    #     update_B_reml!(model)
-    #     update_res_reml!(model)
-    #     mul!(model.R̃Φ_reml, model.R̃_reml, model.Φ)
-    #     copyto!(model.logl_reml, loglikelihood_reml!(model))
-    #     model.se ? fisher_B_reml!(model) : nothing
-    # end
+    if model.reml
+        update_B_reml!(model)
+        update_res_reml!(model)
+        mul!(model.R̃Φ_reml, model.R̃_reml, model.Φ)
+        copyto!(model.logl_reml, loglikelihood_reml!(model))
+        model.se ? fisher_B_reml!(model) : nothing
+    end
     log && IterativeSolvers.shrink!(history)
     history
 end
@@ -183,7 +183,6 @@ function update_Φ!(
     copy!(model.Λ, Λ)
     copy!(model.Φ, Φ)
     copyto!(model.logdetΣ2, logdet(model.Σ[2]))
-    mul!(model.ỸΦ, model.Ỹ, model.Φ)
 end
 
 function update_res!(
@@ -194,12 +193,20 @@ function update_res!(
     model.R̃
 end
 
+function update_res_reml!(
+    model :: MRTVCModel{T}
+    ) where T <: BlasReal
+    # update R̃ = Ỹ - X̃B
+    BLAS.gemm!('N', 'N', -one(T), model.X̃_reml, model.B_reml, one(T), copyto!(model.R̃_reml, model.Ỹ_reml))
+    model.R̃
+end
+
 function loglikelihood!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
     n, d = size(model.Ỹ, 1), size(model.Ỹ, 2)
     # assemble pieces for log-likelihood
-    logl = n * d * log(2π) + n * model.logdetΣ2[1] + d * model.logdetV2[1]
+    logl = n * d * log(2π) + n * model.logdetΣ2[1] + d * model.logdetV2
     @inbounds for j in 1:d
         λj = model.Λ[j]
         @simd for i in 1:n
@@ -210,9 +217,26 @@ function loglikelihood!(
     logl /= -2
 end
 
+function loglikelihood_reml!(
+    model :: MRTVCModel{T}
+    ) where T <: BlasReal
+    n, d = size(model.Ỹ_reml, 1), size(model.Ỹ_reml, 2)
+    # assemble pieces for log-likelihood
+    logl = n * d * log(2π) + n * model.logdetΣ2[1] + d * model.logdetV2_reml
+    @inbounds for j in 1:d
+        λj = model.Λ[j]
+        @simd for i in 1:n
+            tmp = model.D_reml[i] * λj + one(T)
+            logl += log(tmp) + inv(tmp) * model.R̃Φ_reml[i, j]^2
+        end
+    end
+    logl /= -2
+end
+
 function update_B!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
+    mul!(model.ỸΦ, model.Ỹ, model.Φ)
     # Gram matrix G = (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹(Φ'⊗X̃)
     G = model.storage_pd_pd
     fill!(model.storage_nd_pd, zero(T))
@@ -236,31 +260,32 @@ function update_B!(
     model.B
 end
 
-# function update_B_reml!(
-#     model :: MRTVCModel{T}
-#     ) where T <: BlasReal
-#     # Gram matrix G = (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹(Φ'⊗X̃)
-#     G = model.storage_pd_pd
-#     fill!(model.storage_nd_pd_reml, zero(T))
-#     kron_axpy!(transpose(model.Φ), model.X̃_reml, model.storage_nd_pd_reml)
-#     fill!(model.storage_nd_1_reml, zero(T))
-#     kron_axpy!(model.Λ, model.D_reml, model.storage_nd_1_reml)
-#     @inbounds @simd for i in eachindex(model.storage_nd_1_reml)
-#         model.storage_nd_1_reml[i] = one(T) / sqrt(model.storage_nd_1_reml[i] + one(T))
-#     end
-#     lmul!(Diagonal(model.storage_nd_1_reml), model.storage_nd_pd_reml)
-#     mul!(G, transpose(model.storage_nd_pd_reml), model.storage_nd_pd_reml)
-#     # (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹vec(ỸΦ)
-#     copyto!(model.storage_nd_2_reml, model.ỸΦ_reml)
-#     model.storage_nd_2_reml .= model.storage_nd_1_reml .* model.storage_nd_2_reml
-#     mul!(model.storage_pd, transpose(model.storage_nd_pd_reml), model.storage_nd_2_reml)
-#     # Cholesky solve
-#     _, info = LAPACK.potrf!('U', G)
-#     info > 0 && throw("Gram matrix (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹(Φ'⊗X̃) is singular")
-#     LAPACK.potrs!('U', G, model.storage_pd)
-#     copyto!(model.B, model.storage_pd)
-#     model.B
-# end
+function update_B_reml!(
+    model :: MRTVCModel{T}
+    ) where T <: BlasReal
+    mul!(model.ỸΦ_reml, model.Ỹ_reml, model.Φ)
+    # Gram matrix G = (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹(Φ'⊗X̃)
+    G = model.storage_pd_pd_reml
+    fill!(model.storage_nd_pd_reml, zero(T))
+    kron_axpy!(transpose(model.Φ), model.X̃_reml, model.storage_nd_pd_reml)
+    fill!(model.storage_nd_1_reml, zero(T))
+    kron_axpy!(model.Λ, model.D_reml, model.storage_nd_1_reml)
+    @inbounds @simd for i in eachindex(model.storage_nd_1_reml)
+        model.storage_nd_1_reml[i] = one(T) / sqrt(model.storage_nd_1_reml[i] + one(T))
+    end
+    lmul!(Diagonal(model.storage_nd_1_reml), model.storage_nd_pd_reml)
+    mul!(G, transpose(model.storage_nd_pd_reml), model.storage_nd_pd_reml)
+    # (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹vec(ỸΦ)
+    copyto!(model.storage_nd_2_reml, model.ỸΦ_reml)
+    model.storage_nd_2_reml .= model.storage_nd_1_reml .* model.storage_nd_2_reml
+    mul!(model.storage_pd_reml, transpose(model.storage_nd_pd_reml), model.storage_nd_2_reml)
+    # Cholesky solve
+    _, info = LAPACK.potrf!('U', G)
+    info > 0 && throw("Gram matrix (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹(Φ'⊗X̃) is singular")
+    LAPACK.potrs!('U', G, model.storage_pd_reml)
+    copyto!(model.B_reml, model.storage_pd_reml)
+    model.B_reml
+end
 
 function fisher_B!(
     model :: MRTVCModel{T}
@@ -275,6 +300,21 @@ function fisher_B!(
     lmul!(Diagonal(model.storage_nd_1), model.storage_nd_pd)
     mul!(model.storage_pd_pd, transpose(model.storage_nd_pd), model.storage_nd_pd)
     copyto!(model.Bcov, pinv(model.storage_pd_pd))
+end
+
+function fisher_B_reml!(
+    model :: MRTVCModel{T}
+    ) where T <: BlasReal
+    fill!(model.storage_nd_pd_reml, zero(T))
+    kron_axpy!(transpose(model.Φ), model.X̃_reml, model.storage_nd_pd_reml)
+    fill!(model.storage_nd_1_reml, zero(T))
+    kron_axpy!(model.Λ, model.D_reml, model.storage_nd_1_reml)
+    @inbounds @simd for i in eachindex(model.storage_nd_1_reml)
+        model.storage_nd_1_reml[i] = one(T) / sqrt(model.storage_nd_1_reml[i] + one(T))
+    end
+    lmul!(Diagonal(model.storage_nd_1_reml), model.storage_nd_pd_reml)
+    mul!(model.storage_pd_pd_reml, transpose(model.storage_nd_pd_reml), model.storage_nd_pd_reml)
+    copyto!(model.Bcov_reml, pinv(model.storage_pd_pd_reml))
 end
 
 function fisher_Σ!(
