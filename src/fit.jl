@@ -1,5 +1,6 @@
 """
     fit!(model::MRVCModel)
+    fit!(model::MRTVCModel)
 
 Fit a multivariate response variance components model by MM or EM algorithm.
 
@@ -9,7 +10,7 @@ maxiter::Int        maximum number of iterations; default 1000
 reltol::Real        relative tolerance for convergence; default 1e-6
 verbose::Bool       display algorithmic information; default true
 init::Symbol        initialization strategy; :default initializes by least squares, while
-    :user uses user supplied values at model.B and model.Σ
+    :user uses user-supplied values at model.B and model.Σ
 algo::Symbol        optimization algorithm; :MM (default) or EM
 log::Bool           record iterate history or not; default false
 ```
@@ -20,7 +21,7 @@ function fit!(
     reltol  :: Real = 1e-6,
     verbose :: Bool = true,
     init    :: Symbol = :default, # :default or :user
-    algo    :: Symbol  = :MM,
+    algo    :: Symbol = :MM,
     log     :: Bool = false,
     ) where T <: BlasReal
     if model.ymissing
@@ -30,9 +31,9 @@ function fit!(
     # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
     if model.reml
-        @info "Running $(algo) algorithm for REML estimation"
+        @info "Running $algo algorithm for REML estimation"
     else
-        @info "Running $(algo) algorithm for ML estimation"
+        @info "Running $algo algorithm for ML estimation"
     end
     # record iterate history if requested
     history          = ConvergenceHistory(partial = !log)
@@ -475,7 +476,7 @@ return the log-likelihood. Assume `model.Ω` and `model.R` are
 already updated according to `model.Σ` and `model.B`.
 """
 function loglikelihood!(
-    model::MRVCModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     copyto!(model.storage_nd_nd, model.Ω)
     # Cholesky of covariance Ω = U'U
@@ -506,7 +507,7 @@ surrogate Q-function of log-likelihood. Assume `model.Ω` and `model.R` are alre
 updated according to `model.Σ` and `model.B`.
 """
 function loglikelihood_miss!(
-    model::MRVCModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     copyto!(model.storage_nd_nd, model.Ω)
     # Cholesky of covariance Ω = U'U
@@ -544,7 +545,7 @@ function loglikelihood_miss!(
 end
 
 function loglikelihood_reml!(
-    model::MRVCModel{T}
+    model :: MRVCModel{T}
     ) where T <: BlasReal
     copyto!(model.storage_nd_nd_reml, model.Ω_reml)
     # Cholesky of covariance Ω = U'U
@@ -695,7 +696,7 @@ function fisher_Σ!(
     end
     copytri!(Fisher, 'U')
     # compute 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd
-    vechF = zeros(T, (m * d * (d + 1)) >> 1, (m * d * (d + 1)) >> 1)
+    vechFisher = zeros(T, (m * d * (d + 1)) >> 1, (m * d * (d + 1)) >> 1)
     D = duplication(d)
     for i in 1:m
         idx1 = Int(d * (d + 1) / 2 * (i - 1) + 1)
@@ -705,9 +706,9 @@ function fisher_Σ!(
             idx3 = Int(d * (d + 1) / 2 * (j - 1) + 1)
             idx4 = Int(d * (d + 1) / 2 * j)
             idx7, idx8 = d^2 * (j - 1) + 1, d^2 * j
-            vechF[idx1:idx2, idx3:idx4] = D' * Fisher[idx5:idx6, idx7:idx8] * D
+            vechFisher[idx1:idx2, idx3:idx4] = D' * Fisher[idx5:idx6, idx7:idx8] * D
         end
     end
-    copytri!(vechF, 'U')
-    copyto!(model.Σcov, pinv(vechF))
+    copytri!(vechFisher, 'U')
+    copyto!(model.Σcov, pinv(vechFisher))
 end

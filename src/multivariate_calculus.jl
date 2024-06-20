@@ -8,8 +8,8 @@ Overwrite `Y` with `A ⊗ X + Y`. Same as `Y += kron(A, X)`, but more memory eff
     X :: AbstractVecOrMat{T},
     Y :: AbstractVecOrMat{T}
     ) where T <: Real
-    m, n = size(A)
-    p, q = size(X)
+    m, n = size(A, 1), size(A, 2)
+    p, q = size(X, 1), size(X, 2)
     @assert size(Y, 1) == m * p
     @assert size(Y, 2) == n * q
     yidx = 0
@@ -59,31 +59,6 @@ indicates `A` and `B` are symmetric.
     end
     sym && copytri!(C, 'U')
     C
-end
-
-function project_null(
-    Y :: AbstractVecOrMat{T},
-    X :: AbstractVecOrMat{T},
-    V :: Vector{<:AbstractMatrix{T}}
-    ) where {T <: Real}
-    n, p, m = size(X, 1), size(X, 2), length(V)
-    if isempty(X)
-        Y, V, Matrix{T}(I, n, n)
-    else
-        # basis of N(X')
-        Xt = Matrix{T}(undef, size(X, 2), size(X, 1))
-        transpose!(Xt, X)
-        A = nullspace(Xt)
-        s = size(A, 2) 
-        Ỹ = A' * Y
-        Ṽ = Vector{Matrix{T}}(undef, m)
-        storage = zeros(n, s)
-        for i in 1:m
-            mul!(storage, V[i], A)
-            Ṽ[i] = BLAS.gemm('T', 'N', A, storage)
-        end 
-        Ỹ, Ṽ, A
-    end 
 end
 
 function duplication(n)
