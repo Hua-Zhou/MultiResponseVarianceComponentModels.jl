@@ -31,8 +31,10 @@ function fit!(
             info > 0 && throw("Design matrix X is rank deficient")
             LAPACK.potrs!('U', model.storage_p_p, copyto!(model.B, model.xty))
             BLAS.gemm!('N', 'N', -one(T), model.X, model.B, one(T), copyto!(model.R̃Φ, model.Y))
+            update_res!(model)
         else
-            copy!(model.R̃Φ, Y)
+            copy!(model.R̃Φ, model.Y)
+            copy!(model.R̃, model.Ỹ)
         end
         # initialization of variance components Σ[1], Σ[2]
         # if R is MatrixNormal(0, V[i], Σ[i]), i.e., vec(R) is Normal(0, Σ[i]⊗V[i]),
@@ -42,10 +44,12 @@ function fit!(
             model.Σ[k] .= inv(tr(model.V[k])) .* model.storage_d_d_1
         end
         update_Φ!(model)
-        update_res!(model)
+        # update R̃Φ = (Ỹ - X̃B)Φ
+        mul!(model.R̃Φ, model.R̃, model.Φ)
     elseif init == :user
+        update_res!(model)
         update_Φ!(model)
-        update_res!(model)        
+        mul!(model.R̃Φ, model.R̃, model.Φ)
     else
         throw("Cannot recognize initialization method $init")
     end
@@ -61,10 +65,13 @@ function fit!(
         IterativeSolvers.nextiter!(history)
         tic = time()
         # initial estiamte of Σ[i] can be lousy, so we update Σ[i] first in the 1st round
-        p > 0 && iter > 1 && update_B!(model)
+        if p > 0 && iter > 1
+            update_B!(model)
+            update_res!(model)
+        end
         update_Σ!(model)
         update_Φ!(model)
-        update_res!(model)
+        mul!(model.R̃Φ, model.R̃, model.Φ)
         logl_prev = logl
         logl = loglikelihood!(model)
         toc = time()
@@ -89,15 +96,9 @@ function fit!(
         end
     end
     # if model.reml
-    #     update_Ω_reml!(model)
-    #     # need Ω⁻¹ for B
-    #     copyto!(model.storage_nd_nd_reml, model.Ω_reml)
-    #     # Cholesky of covariance Ω = U'U
-    #     _, info = LAPACK.potrf!('U', model.storage_nd_nd_reml)
-    #     info > 0 && throw("Covariance matrix Ω is singular")
-    #     LAPACK.potri!('U', model.storage_nd_nd_reml)
-    #     copytri!(model.storage_nd_nd_reml, 'U')
     #     update_B_reml!(model)
+    #     update_res_reml!(model)
+    #     mul!(model.R̃Φ_reml, model.R̃_reml, model.Φ)
     #     copyto!(model.logl_reml, loglikelihood_reml!(model))
     #     model.se ? fisher_B_reml!(model) : nothing
     # end
@@ -183,15 +184,14 @@ function update_Φ!(
     copy!(model.Φ, Φ)
     copyto!(model.logdetΣ2, logdet(model.Σ[2]))
     mul!(model.ỸΦ, model.Ỹ, model.Φ)
-    mul!(model.BΦ, model.B, model.Φ)
 end
 
 function update_res!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
-    # update R̃Φ = (Ỹ - X̃B)Φ
-    BLAS.gemm!('N', 'N', -one(T), model.X̃, model.BΦ, one(T), copyto!(model.R̃Φ, model.ỸΦ))
-    model.R̃Φ
+    # update R̃ = Ỹ - X̃B
+    BLAS.gemm!('N', 'N', -one(T), model.X̃, model.B, one(T), copyto!(model.R̃, model.Ỹ))
+    model.R̃
 end
 
 function loglikelihood!(
@@ -207,7 +207,7 @@ function loglikelihood!(
             logl += log(tmp) + inv(tmp) * model.R̃Φ[i, j]^2
         end
     end
-    logl /= -2  
+    logl /= -2
 end
 
 function update_B!(
@@ -235,6 +235,32 @@ function update_B!(
     copyto!(model.B, model.storage_pd)
     model.B
 end
+
+# function update_B_reml!(
+#     model :: MRTVCModel{T}
+#     ) where T <: BlasReal
+#     # Gram matrix G = (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹(Φ'⊗X̃)
+#     G = model.storage_pd_pd
+#     fill!(model.storage_nd_pd_reml, zero(T))
+#     kron_axpy!(transpose(model.Φ), model.X̃_reml, model.storage_nd_pd_reml)
+#     fill!(model.storage_nd_1_reml, zero(T))
+#     kron_axpy!(model.Λ, model.D_reml, model.storage_nd_1_reml)
+#     @inbounds @simd for i in eachindex(model.storage_nd_1_reml)
+#         model.storage_nd_1_reml[i] = one(T) / sqrt(model.storage_nd_1_reml[i] + one(T))
+#     end
+#     lmul!(Diagonal(model.storage_nd_1_reml), model.storage_nd_pd_reml)
+#     mul!(G, transpose(model.storage_nd_pd_reml), model.storage_nd_pd_reml)
+#     # (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹vec(ỸΦ)
+#     copyto!(model.storage_nd_2_reml, model.ỸΦ_reml)
+#     model.storage_nd_2_reml .= model.storage_nd_1_reml .* model.storage_nd_2_reml
+#     mul!(model.storage_pd, transpose(model.storage_nd_pd_reml), model.storage_nd_2_reml)
+#     # Cholesky solve
+#     _, info = LAPACK.potrf!('U', G)
+#     info > 0 && throw("Gram matrix (Φ'⊗X̃)'(Λ⊗D + Ind)⁻¹(Φ'⊗X̃) is singular")
+#     LAPACK.potrs!('U', G, model.storage_pd)
+#     copyto!(model.B, model.storage_pd)
+#     model.B
+# end
 
 function fisher_B!(
     model :: MRTVCModel{T}

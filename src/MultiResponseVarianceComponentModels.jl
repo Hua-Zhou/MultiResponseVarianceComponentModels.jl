@@ -305,7 +305,7 @@ struct MRTVCModel{T <: BlasReal} <: VCModel
     xtx                     :: Matrix{T} # Gram matrix X'X
     xty                     :: Matrix{T} # X'Y
     ỸΦ                      :: Matrix{T}
-    BΦ                      :: Matrix{T}
+    R̃                       :: Matrix{T}
     R̃Φ                      :: Matrix{T}
     N1tN1                   :: Matrix{T}
     N2tN2                   :: Matrix{T}
@@ -417,7 +417,7 @@ function MRTVCModel(
     xtx              = transpose(Xmat) * Xmat
     xty              = transpose(Xmat) * Y
     ỸΦ               = Matrix{T}(undef, n, d)
-    BΦ               = Matrix{T}(undef, p, d)
+    R̃                = Matrix{T}(undef, n, d)
     R̃Φ               = Matrix{T}(undef, n, d)
     N1tN1            = Matrix{T}(undef, d, d)
     N2tN2            = Matrix{T}(undef, d, d)
@@ -435,7 +435,7 @@ function MRTVCModel(
     MRTVCModel{T}(
         Y, Ỹ, Xmat, X̃, V, U, D, logdetV2,
         B, Σ, Φ, Λ, logdetΣ2,
-        xtx, xty, ỸΦ, BΦ, R̃Φ, N1tN1, N2tN2,
+        xtx, xty, ỸΦ, R̃, R̃Φ, N1tN1, N2tN2,
         storage_d_1, storage_d_2, storage_d_d_1, storage_d_d_2,
         storage_p_p, storage_pd, storage_pd_pd, 
         storage_nd_1, storage_nd_2, storage_nd_pd, logl, Bcov, Σcov,
