@@ -82,7 +82,7 @@ model = MRVCModel(Y, X, V; se = false) # or model = MRVCModel(Y, X, V; se = fals
 @timev fit!(model)
 ```
 
-# Missing response
+# Special case: missing response
 You can also fit data with missing response. For example:
 ```julia
 Y_miss = Matrix{Union{eltype(Y), Missing}}(missing, size(Y))
@@ -94,32 +94,25 @@ model = MRVCModel(Y_miss, X, V; se = false)
 ```
 
 # Special case: ``m = 2``
-When there are __two__ variance components, you can accelerate fitting by avoiding large matrix inversion per iteration with the generalized eigenvalue decomposition of kernel matrices and variance components.
-
-You can first simulate data with a slightly more memory-efficient code.
+When there are __two__ variance components, you can accelerate fitting by avoiding large matrix inversion per iteration. To illustrate this, you can first simulate data as we did previously but with larger ``n \cdot d`` and ``m = 2``.
 ```@repl 1
 function simulate(n, d, p, m)
-    Y = zeros(n, d)
     X = rand(n, p)
     B = rand(p, d)
-    V = [zeros(n, n) for _ in 1:m] # kernel matrices
-    Σ = [zeros(d, d) for _ in 1:m] # variance components
-    Ω = zeros(n * d, n * d) # overall nd-by-nd covariance matrix Ω
-    storage = rand(n * d)
-    @inbounds for i in 1:m
+    V = [zeros(n, n) for _ in 1:m]
+    Σ = [zeros(d, d) for _ in 1:m]
+    Ω = zeros(n * d, n * d)
+    for i in 1:m
         Vi = randn(n, n)
         mul!(V[i], transpose(Vi), Vi)
         Σi = randn(d, d)
         mul!(Σ[i], transpose(Σi), Σi)
         kron_axpy!(Σ[i], V[i], Ω) # Ω = Σ[1]⊗V[1] + ... + Σ[m]⊗V[m]
     end
-    LAPACK.potrf!('L', Ω) # lower Cholesky factor of Ω
-    BLAS.trmv!('L', 'N', 'N', Ω, storage)
-    copyto!(Y, storage)
-    mul!(Y, X, B, one(eltype(Ω)), one(eltype(Ω)))
+    Ωchol = cholesky(Ω)
+    Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
     Y, X, V, B, Σ
 end
-
 Y, X, V, B, Σ = simulate(5000, 4, 10, 2)
 ```
 
