@@ -92,3 +92,40 @@ Y_miss[rand(1:length(Y_miss), n)] .= missing
 model = MRVCModel(Y_miss, X, V; se = false)
 @timev fit!(model)
 ```
+
+# Special case: ``m = 2``
+When there are __two__ variance components, you can accelerate fitting by avoiding large matrix inversion per iteration with the generalized eigenvalue decomposition of kernel matrices and variance components.
+
+You can first simulate data with a slightly more memory-efficient code.
+```@repl 1
+function simulate(n, d, p, m)
+    Y = zeros(n, d)
+    X = rand(n, p)
+    B = rand(p, d)
+    V = [zeros(n, n) for _ in 1:m] # kernel matrices
+    Σ = [zeros(d, d) for _ in 1:m] # variance components
+    Ω = zeros(n * d, n * d) # overall nd-by-nd covariance matrix Ω
+    storage = rand(n * d)
+    @inbounds for i in 1:m
+        Vi = randn(n, n)
+        mul!(V[i], transpose(Vi), Vi)
+        Σi = randn(d, d)
+        mul!(Σ[i], transpose(Σi), Σi)
+        kron_axpy!(Σ[i], V[i], Ω) # Ω = Σ[1]⊗V[1] + ... + Σ[m]⊗V[m]
+    end
+    LAPACK.potrf!('L', Ω) # lower Cholesky factor of Ω
+    BLAS.trmv!('L', 'N', 'N', Ω, storage)
+    copyto!(Y, storage)
+    mul!(Y, X, B, one(eltype(Ω)), one(eltype(Ω)))
+    Y, X, V, B, Σ
+end
+
+Y, X, V, B, Σ = simulate(5000, 4, 10, 2)
+```
+
+Then you can fit data as follows:
+```@repl 1
+model = MRTVCModel(Y, X, V)
+@timev fit!(model)
+reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:2])
+```
