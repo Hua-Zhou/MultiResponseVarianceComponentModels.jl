@@ -16,7 +16,7 @@ julia> ]
 pkg> add https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl.git
 ```
 ## Documentation
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/stable)
 
 ## Examples
 ```julia
