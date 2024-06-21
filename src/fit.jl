@@ -11,9 +11,14 @@ reltol::Real        relative tolerance for convergence; default 1e-6
 verbose::Bool       display algorithmic information; default true
 init::Symbol        initialization strategy; :default initializes by least squares, while
     :user uses user-supplied values at model.B and model.Σ
-algo::Symbol        optimization algorithm; :MM (default) or EM (for MRVCModel)
+algo::Symbol        optimization algorithm; :MM (default) or :EM (for MRVCModel)
 log::Bool           record iterate history or not; default false
 ```
+
+# Extended help
+MM algorithm is provably faster than EM algorithm in this setting, so recommend trying 
+MM algorithm first, which is default, and switching to EM algorithm if there are 
+convergence issues.
 """
 function fit!(
     model   :: MRVCModel{T};

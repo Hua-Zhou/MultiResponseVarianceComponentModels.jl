@@ -1,6 +1,6 @@
 """
-`MRVCModels.jl` permits maximum likelihood (ML) and residual maximum likelihood (REML) estimation 
-as well as inference for multivariate response variance components linear mixed models.
+`MRVCModels.jl` permits maximum likelihood (ML) or residual maximum likelihood (REML) estimation 
+and inference for multivariate response variance components linear mixed models.
 """
 module MultiResponseVarianceComponentModels
 
@@ -109,21 +109,20 @@ end
         X::Union{Nothing, AbstractVecOrMat},
         V::Union{AbstractMatrix, Vector{<:AbstractMatrix}}
         )
-    MRTVCModel(
-        Y::AbstractVecOrMat,
-        X::Union{Nothing, AbstractVecOrMat},
-        V::Vector{<:AbstractMatrix}
-        )
 
-Create a new `MRVCModel` or `MRTVCModel` instance from response matrix `Y`, 
-predictor matrix `X`, and kernel matrices `V`. For `MRTVCModel` instance, 
-the number of variance components must be two.
+Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`, 
+and kernel matrices `V`.
 
 # Keyword arguments
 ```
 se::Bool        calculate standard errors; default true
 reml::Bool      pursue REML estimation instead of ML estimation; default false
 ```
+
+# Extended help
+When there are two variance components, computation in each iteration can be
+reduced, which is attained with `MRTVCModel` instance. `MRVCModel` is more general.
+For `MRTVCModel`, the number of variance components must be two.
 """
 function MRVCModel(
     Y      :: Union{AbstractMatrix{T}, AbstractMatrix{Union{Missing, T}}},
@@ -350,6 +349,22 @@ struct MRTVCModel{T <: BlasReal} <: VCModel
     reml                    :: Bool
 end
 
+"""
+    MRTVCModel(
+        Y::AbstractVecOrMat,
+        X::Union{Nothing, AbstractVecOrMat},
+        V::Vector{<:AbstractMatrix}
+        )
+
+Create a new `MRTVCModel` instance from response matrix `Y`, predictor matrix `X`, 
+and kernel matrices `V`. The number of variance components must be two.
+
+# Keyword arguments
+```
+se::Bool        calculate standard errors; default true
+reml::Bool      pursue REML estimation instead of ML estimation; default false
+```
+"""
 function MRTVCModel(
     Y      :: AbstractMatrix{T},
     X      :: Union{Nothing, AbstractMatrix{T}},
@@ -472,10 +487,16 @@ function Base.show(io::IO, model::VCModel)
     else
         n, d, p, m = size(model.Y, 1), size(model.Y, 2), size(model.X, 2), length(model.V)
     end
-    if d == 1
+    if d == 1 && model isa MRTVCModel
+        printstyled(io, "A univariate response two variance component model\n"; underline = true)
+    elseif d == 1
         printstyled(io, "A univariate response variance component model\n"; underline = true)
+    elseif d == 2 && model isa MRTVCModel
+        printstyled(io, "A bivariate response two variance component model\n"; underline = true)
     elseif d == 2
         printstyled(io, "A bivariate response variance component model\n"; underline = true)
+    elseif model isa MRTVCModel
+        printstyled(io, "A multivariate response two variance component model\n"; underline = true)
     else
         printstyled(io, "A multivariate response variance component model\n"; underline = true)
     end

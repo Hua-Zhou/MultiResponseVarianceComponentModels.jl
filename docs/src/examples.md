@@ -94,7 +94,7 @@ model = MRVCModel(Y_miss, X, V; se = false)
 ```
 
 # Special case: ``m = 2``
-When there are __two__ variance components, you can accelerate fitting by avoiding large matrix inversion per iteration. To illustrate this, you can first simulate data as we did previously but with larger ``n \cdot d`` and ``m = 2``.
+When there are __two__ variance components, you can accelerate fitting by avoiding large matrix inversion per iteration. To illustrate this, you can first simulate data as done previously but with larger ``nd`` and ``m = 2``.
 ```@repl 1
 function simulate(n, d, p, m)
     X = rand(n, p)
