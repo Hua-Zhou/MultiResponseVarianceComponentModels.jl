@@ -17,7 +17,7 @@ log::Bool           record iterate history or not; default false
 
 # Extended help
 MM algorithm is provably faster than EM algorithm in this setting, so recommend trying 
-MM algorithm first, which is default, and switching to EM algorithm if there are 
+MM algorithm first, which is by default, and switching to EM algorithm if there are 
 convergence issues.
 """
 function fit!(

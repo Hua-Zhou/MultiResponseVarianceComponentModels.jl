@@ -1,6 +1,7 @@
 """
-`MRVCModels.jl` permits maximum likelihood (ML) or residual maximum likelihood (REML) estimation 
-and inference for multivariate response variance components linear mixed models.
+__*MRVCModels*__ stands for __*m*__ultivariate __*r*__esponse __*v*__ariance __*c*__omponents
+linear mixed __*models*__. `MRVCModels.jl` permits maximum likelihood (ML) or residual
+maximum likelihood (REML) estimation and inference.
 """
 module MultiResponseVarianceComponentModels
 
@@ -120,9 +121,11 @@ reml::Bool      pursue REML estimation instead of ML estimation; default false
 ```
 
 # Extended help
-When there are two variance components, computation in each iteration can be
-reduced, which is attained with `MRTVCModel` instance. `MRVCModel` is more general.
-For `MRTVCModel`, the number of variance components must be two.
+When there are two variance components, computation can be reduced by avoiding large matrix 
+inversion in each iteration, which is achieved with `MRTVCModel` instance. __*MRTVCModels*__ 
+stands for __*m*__ultivariate __*r*__esponse __*t*__wo __*v*__ariance __*c*__omponents
+linear mixed __*models*__. `MRVCModel` is more general and is not limited to two variance 
+components setting. For `MRTVCModel`, the number of variance components must be two.
 """
 function MRVCModel(
     Y      :: Union{AbstractMatrix{T}, AbstractMatrix{Union{Missing, T}}},
