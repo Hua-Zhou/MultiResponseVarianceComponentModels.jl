@@ -11,11 +11,17 @@ export VCModel,
     MultiResponseVarianceComponentModel,
     MRVCModel,
     MRTVCModel,
-    # fit.jl
+    # fit.jl or eigen.jl
     fit!,
     loglikelihood!,
+    loglikelihood,
+    loglikelihood_reml,
     update_res!,
     update_Ω!,
+    update_B!,
+    update_B_reml!,
+    fisher_B!,
+    fisher_B_reml!,
     fisher_Σ!,
     # missing.jl
     permute,
@@ -27,7 +33,9 @@ export VCModel,
     kron_axpy!,
     kron_reduction!,
     vech,
-    ◺
+    ◺,
+    duplication,
+    commutation
 
 abstract type VCModel end
 

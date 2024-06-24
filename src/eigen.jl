@@ -99,7 +99,7 @@ function fit!(
         update_B_reml!(model)
         update_res_reml!(model)
         mul!(model.R̃Φ_reml, model.R̃_reml, model.Φ)
-        copyto!(model.logl_reml, loglikelihood_reml!(model))
+        copyto!(model.logl_reml, loglikelihood_reml(model))
         model.se ? fisher_B_reml!(model) : nothing
     end
     log && IterativeSolvers.shrink!(history)
@@ -201,6 +201,11 @@ function update_res_reml!(
     model.R̃
 end
 
+"""
+    loglikelihood(model::MRTVCModel)
+
+Return the residual log-likelihood, assuming `model.Λ`, `model.Φ`, `model.logdetΣ2`, and `model.R̃Φ` are updated.
+"""
 function loglikelihood(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
@@ -217,7 +222,12 @@ function loglikelihood(
     logl /= -2
 end
 
-function loglikelihood_reml!(
+"""
+    loglikelihood_reml(model::MRTVCModel)
+
+Return the log-likelihood, assuming `model.Λ`, `model.Φ`, `model.logdetΣ2`, and `model.R̃Φ_reml` are updated.
+"""
+function loglikelihood_reml(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
     n, d = size(model.Ỹ_reml, 1), size(model.Ỹ_reml, 2)
@@ -233,6 +243,11 @@ function loglikelihood_reml!(
     logl /= -2
 end
 
+"""
+    update_B!(model::MRTVCModel)
+
+Update the regression coefficients `model.B`, assuming `model.Λ` and `model.Φ` are updated.
+"""
 function update_B!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
@@ -260,6 +275,11 @@ function update_B!(
     model.B
 end
 
+"""
+    update_B_reml!(model::MRTVCModel)
+
+Update the regression coefficients `model.B_reml`, assuming `model.Λ` and `model.Φ` are updated.
+"""
 function update_B_reml!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
@@ -287,6 +307,12 @@ function update_B_reml!(
     model.B_reml
 end
 
+"""
+    fisher_B!(model::MRTVCModel)
+
+Compute the sampling variance-covariance `model.Bcov` of regression coefficients `model.B`, 
+assuming `model.Λ` and `model.Φ` are updated.
+"""
 function fisher_B!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
@@ -302,6 +328,12 @@ function fisher_B!(
     copyto!(model.Bcov, pinv(model.storage_pd_pd))
 end
 
+"""
+    fisher_B_reml!(model::MRTVCModel)
+
+Compute the sampling variance-covariance `model.Bcov_reml` of regression coefficients `model.B_reml`, 
+assuming `model.Λ` and `model.Φ` are updated.
+"""
 function fisher_B_reml!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
@@ -317,6 +349,12 @@ function fisher_B_reml!(
     copyto!(model.Bcov_reml, pinv(model.storage_pd_pd_reml))
 end
 
+"""
+    fisher_Σ!(model::MRTVCModel)
+
+Compute the sampling variance-covariance `model.Σcov` of variance component estimates `model.Σ`, 
+assuming `model.Λ` and `model.Φ` are updated.
+"""
 function fisher_Σ!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal

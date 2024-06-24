@@ -33,7 +33,7 @@ function h2(
     ses  = zeros(T, m, d)
     tot  = sum([model.Σ[l] for l in 1:m])
     idx  = findvar(d)
-    s    = binomial(d, 2) + d
+    s    = ◺(d)
     for j in 1:d
         for i in 1:m
             w = [idx[j] + s * (l - 1) for l in 1:m]
@@ -55,7 +55,7 @@ function h2(
 end
 
 function findvar(d::Int)
-    s, r = binomial(d, 2) + d, d 
+    s, r = ◺(d), d 
     idx = ones(Int, d)
     for j in 2:length(idx)
         idx[j] = idx[j - 1] + r
@@ -77,7 +77,7 @@ function rg(
     rgs = [zeros(T, d, d) for _ in 1:m]
     ses = [ones(T, d, d) for _ in 1:m]
     idx = findvar(d)
-    s   = binomial(d, 2) + d
+    s   = ◺(d)
     for i in 1:m
         D = Diagonal(model.Σ[i])
         for j in 1:d

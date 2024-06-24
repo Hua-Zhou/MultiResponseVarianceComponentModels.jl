@@ -61,7 +61,7 @@ indicates `A` and `B` are symmetric.
     C
 end
 
-function duplication(n)
+function duplication(n::Int)
     D = zeros(Int, abs2(n), ◺(n))
     vechidx = 1
     for j in 1:n
@@ -82,8 +82,14 @@ Return lower triangular part of `A`.
 vech(A::AbstractVecOrMat) = [A[i, j] for i in 1:size(A, 1), j in 1:size(A, 2) if i ≥ j]
 
 function commutation(m::Int, n::Int)
-    mn = m * n 
-    reshape(kron(vec(Matrix{Float64}(I, m, m)), Matrix{Float64}(I, n, n)), mn, mn)
+    K = zeros(Int, m * n, m * n)
+    colK = 1
+    @inbounds for j in 1:n, i in 1:m
+        rowK          = n * (i - 1) + j
+        K[rowK, colK] = 1
+        colK         += 1
+    end
+    K
 end
 
 commutation(m::Int) = commutation(m, m)

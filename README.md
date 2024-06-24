@@ -21,39 +21,48 @@ pkg> add https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl.git
 ## Examples
 ```julia
 using MultiResponseVarianceComponentModels, LinearAlgebra, Random
+
 # simulation
-Random.seed!(1234)
-n = 1_000  # n of observations
-d = 4      # n of responses
-p = 10     # n of covariates
-m = 3      # n of variance components
-X = rand(n, p)
-B = rand(p, d) 
-V = [zeros(n, n) for _ in 1:m] # kernel matrices
-Σ = [zeros(d, d) for _ in 1:m] # variance components
-for i in 1:m
-    Vi = randn(n, n)
-    copy!(V[i], Vi' * Vi)
-    Σi = randn(d, d)
-    copy!(Σ[i], Σi' * Σi)
+begin
+    Random.seed!(1234)
+    n = 1_000  # n of observations
+    d = 4      # n of responses
+    p = 10     # n of covariates
+    m = 3      # n of variance components
+    X = rand(n, p)
+    B = rand(p, d) 
+    V = [zeros(n, n) for _ in 1:m] # kernel matrices
+    Σ = [zeros(d, d) for _ in 1:m] # variance components
+    for i in 1:m
+        Vi = randn(n, n)
+        copy!(V[i], Vi' * Vi)
+        Σi = randn(d, d)
+        copy!(Σ[i], Σi' * Σi)
+    end
+    Ω = zeros(n * d, n * d) # overall nd-by-nd covariance matrix Ω
+    for i = 1:m
+        Ω += kron(Σ[i], V[i])
+    end
+    Ωchol = cholesky(Ω)
+    Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
 end
-Ω = zeros(n * d, n * d) # overall nd-by-nd covariance matrix Ω
-for i = 1:m
-    Ω += kron(Σ[i], V[i])
-end
-Ωchol = cholesky(Ω)
-Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
+
 # maximum likelihood estimation
 model = MRVCModel(Y, X, V)
 @timev fit!(model) # ~ 30 seconds
+
 # residual maximum likelihood estimation
 model = MRVCModel(Y, X, V; reml = true)
 @timev fit!(model) # ~ 30 seconds
 
+# variance components estimates
 model.Σ
-reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
-model.Σcov # sampling variance by inverse of Fisher information matrix
-diag(model.Σcov) # (binomial(d, 2) + d) * m variance/covariance parameters
+# comparison of true values and estimates
+reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m])
+# sampling variance by inverse of Fisher information matrix
+model.Σcov
+diag(model.Σcov) # m * (binomial(d, 2) + d) parameters
+# log-likelihood
 model.logl
 ```
 ## References
