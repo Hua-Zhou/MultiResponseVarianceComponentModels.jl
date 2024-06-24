@@ -701,15 +701,15 @@ function fisher_Σ!(
     end
     copytri!(Fisher, 'U')
     # compute 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd
-    vechFisher = zeros(T, (m * d * (d + 1)) >> 1, (m * d * (d + 1)) >> 1)
+    vechFisher = zeros(T, m * ◺(d), m * ◺(d))
     D = duplication(d)
     for i in 1:m
-        idx1 = Int(d * (d + 1) / 2 * (i - 1) + 1)
-        idx2 = Int(d * (d + 1) / 2 * i)
+        idx1 = ◺(d) * (i - 1) + 1
+        idx2 = ◺(d) * i
         idx5, idx6 = d^2 * (i - 1) + 1, d^2 * i
         for j in i:m
-            idx3 = Int(d * (d + 1) / 2 * (j - 1) + 1)
-            idx4 = Int(d * (d + 1) / 2 * j)
+            idx3 = ◺(d) * (j - 1) + 1
+            idx4 = ◺(d) * j
             idx7, idx8 = d^2 * (j - 1) + 1, d^2 * j
             vechFisher[idx1:idx2, idx3:idx4] = D' * Fisher[idx5:idx6, idx7:idx8] * D
         end

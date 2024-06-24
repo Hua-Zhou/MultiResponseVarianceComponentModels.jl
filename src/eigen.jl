@@ -53,7 +53,7 @@ function fit!(
     else
         throw("Cannot recognize initialization method $init")
     end
-    logl = loglikelihood!(model)
+    logl = loglikelihood(model)
     toc = time()
     verbose && println("iter = 0, logl = $logl")
     IterativeSolvers.nextiter!(history)
@@ -73,7 +73,7 @@ function fit!(
         update_Φ!(model)
         mul!(model.R̃Φ, model.R̃, model.Φ)
         logl_prev = logl
-        logl = loglikelihood!(model)
+        logl = loglikelihood(model)
         toc = time()
         verbose && println("iter = $iter, logl = $logl")
         push!(history, :iter    , iter)
@@ -201,7 +201,7 @@ function update_res_reml!(
     model.R̃
 end
 
-function loglikelihood!(
+function loglikelihood(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
     n, d = size(model.Ỹ, 1), size(model.Ỹ, 2)
@@ -357,15 +357,15 @@ function fisher_Σ!(
     LinearAlgebra.copytri!(W, 'L')
     mul!(view(Fisher, (d^2 + 1):(2d^2), (d^2 + 1):(2d^2)), Φ2 * Diagonal(vec(W)), transpose(Φ2))
     LinearAlgebra.copytri!(Fisher, 'L')
-    vechFisher = zeros(T, (2 * d * (d + 1)) >> 1, (2 * d * (d + 1)) >> 1)
+    vechFisher = zeros(T, 2 * ◺(d), 2 * ◺(d))
     D = duplication(d)
     for i in 1:2
-        idx1 = Int(d * (d + 1) / 2 * (i - 1) + 1)
-        idx2 = Int(d * (d + 1) / 2 * i)
+        idx1 = ◺(d) * (i - 1) + 1
+        idx2 = ◺(d) * i
         idx5, idx6 = d^2 * (i - 1) + 1, d^2 * i
-        for j in i:2
-            idx3 = Int(d * (d + 1) / 2 * (j - 1) + 1)
-            idx4 = Int(d * (d + 1) / 2 * j)
+        for j in i:m
+            idx3 = ◺(d) * (j - 1) + 1
+            idx4 = ◺(d) * j
             idx7, idx8 = d^2 * (j - 1) + 1, d^2 * j
             vechFisher[idx1:idx2, idx3:idx4] = D' * Fisher[idx5:idx6, idx7:idx8] * D
         end

@@ -7,18 +7,18 @@ function project_null(
     if isempty(X)
         Y, V, Matrix{T}(I, n, n)
     else
-        # basis of N(X')
-        Xt = Matrix{T}(undef, size(X, 2), size(X, 1))
-        transpose!(Xt, X)
-        A = nullspace(Xt)
+        # basis of N(Xᵗ)
+        Xᵗ = Matrix{T}(undef, size(X, 2), size(X, 1))
+        transpose!(Xᵗ, X)
+        A = nullspace(Xᵗ)
         s = size(A, 2) 
-        Ỹ = A' * Y
+        Ỹ = transpose(A) * Y
         Ṽ = Vector{Matrix{T}}(undef, m)
         storage = zeros(n, s)
         for i in 1:m
             mul!(storage, V[i], A)
             Ṽ[i] = BLAS.gemm('T', 'N', A, storage)
-        end 
+        end
         Ỹ, Ṽ, A
-    end 
+    end
 end

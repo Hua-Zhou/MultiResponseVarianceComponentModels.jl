@@ -1,26 +1,33 @@
 """
-__*MRVCModels*__ stands for __*m*__ultivariate __*r*__esponse __*v*__ariance __*c*__omponents
-linear mixed __*models*__. `MRVCModels.jl` permits maximum likelihood (ML) or residual
+__MRVCModels__ stands for __M__ultivariate __R__esponse __V__ariance __C__omponents
+linear mixed __Models__. `MRVCModels.jl` permits maximum likelihood (ML) or residual
 maximum likelihood (REML) estimation and inference.
 """
 module MultiResponseVarianceComponentModels
 
 using IterativeSolvers, LinearAlgebra, Manopt, Manifolds, Distributions, SweepOperator, InvertedIndices
 import LinearAlgebra: BlasReal, copytri!
-export fit!,
-    kron_axpy!,
-    kron_reduction!,
-    loglikelihood!,
+export VCModel,
+    MultiResponseVarianceComponentModel,
     MRVCModel,
     MRTVCModel,
-    MultiResponseVarianceComponentModel,
+    # fit.jl
+    fit!,
+    loglikelihood!,
     update_res!,
     update_Ω!,
     fisher_Σ!,
+    # missing.jl
+    permute,
+    # parse.jl
     lrt,
     h2,
     rg,
-    permute
+    # multivariate_calculus.jl
+    kron_axpy!,
+    kron_reduction!,
+    vech,
+    ◺
 
 abstract type VCModel end
 
@@ -122,10 +129,10 @@ reml::Bool      pursue REML estimation instead of ML estimation; default false
 
 # Extended help
 When there are two variance components, computation can be reduced by avoiding large matrix 
-inversion in each iteration, which is achieved with `MRTVCModel` instance. __*MRTVCModels*__ 
-stands for __*m*__ultivariate __*r*__esponse __*t*__wo __*v*__ariance __*c*__omponents
-linear mixed __*models*__. `MRVCModel` is more general and is not limited to two variance 
-components setting. For `MRTVCModel`, the number of variance components must be two.
+inversion per iteration, which is achieved with `MRTVCModel` instance. __MRTVCModels__ 
+stands for __M__ultivariate __R__esponse __T__wo __V__ariance __C__omponents
+linear mixed __Models__. `MRVCModel` is more general and is not limited to two variance 
+components case. For `MRTVCModel`, the number of variance components must be two.
 """
 function MRVCModel(
     Y      :: Union{AbstractMatrix{T}, AbstractMatrix{Union{Missing, T}}},
@@ -208,7 +215,7 @@ function MRVCModel(
     if se
         storages_nd_nd = [Matrix{T}(undef, nd, nd) for _ in 1:m]
         Bcov           = Matrix{T}(undef, pd, pd)
-        Σcov           = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d))
+        Σcov           = Matrix{T}(undef, m * ◺(d), m * ◺(d))
         reml ? Bcov_reml  = Matrix{T}(undef, pd_reml, pd_reml) : Bcov_reml  = nothing
     else
         storages_nd_nd = Bcov = Σcov = Bcov_reml = nothing
@@ -420,7 +427,7 @@ function MRTVCModel(
     end
     if se
         Bcov           = Matrix{T}(undef, pd, pd)
-        Σcov           = Matrix{T}(undef, m * (binomial(d, 2) + d), m * (binomial(d, 2) + d))
+        Σcov           = Matrix{T}(undef, m * ◺(d), m * ◺(d))
         reml ? Bcov_reml  = Matrix{T}(undef, pd_reml, pd_reml) : Bcov_reml  = nothing
     else
         Bcov = Σcov = Bcov_reml = nothing

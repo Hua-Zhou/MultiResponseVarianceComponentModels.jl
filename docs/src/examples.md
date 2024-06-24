@@ -41,7 +41,7 @@ Then variance components and mean effects estimates can be accessed through
 model.Σ
 model.B
 hcat(vec(B), vec(model.B))
-reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
+reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m])
 ```
 
 # Standard errors
@@ -68,7 +68,7 @@ Variance components and mean effects estimates and their standard errors can be 
 model.Σ
 model.B_reml
 hcat(vec(B), vec(model.B_reml))
-reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:m])
+reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m])
 model.Σcov
 model.Bcov_reml
 sqrt.(diag(model.Σcov))
@@ -78,7 +78,7 @@ sqrt.(diag(model.Bcov_reml))
 # Estimation only
 Calculating standard errors can be memory-consuming, so you could instead forego such calculation via:
 ```julia
-model = MRVCModel(Y, X, V; se = false) # or model = MRVCModel(Y, X, V; se = false, reml = true)
+model = MRVCModel(Y, X, V; se = false)
 @timev fit!(model)
 ```
 
@@ -113,12 +113,12 @@ function simulate(n, d, p, m)
     Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
     Y, X, V, B, Σ
 end
-Y, X, V, B, Σ = simulate(5000, 4, 10, 2)
+Y, X, V, B, Σ = simulate(5_000, 4, 10, 2)
 ```
 
 Then you can fit data as follows:
 ```@repl 1
 model = MRTVCModel(Y, X, V)
 @timev fit!(model)
-reduce(hcat, [hcat(vec(Σ[i]), vec(model.Σ[i])) for i in 1:2])
+reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:2])
 ```
