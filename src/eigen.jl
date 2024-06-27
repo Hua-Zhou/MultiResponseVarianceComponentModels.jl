@@ -401,7 +401,7 @@ function fisher_Σ!(
         idx1 = ◺(d) * (i - 1) + 1
         idx2 = ◺(d) * i
         idx5, idx6 = d^2 * (i - 1) + 1, d^2 * i
-        for j in i:m
+        for j in i:2
             idx3 = ◺(d) * (j - 1) + 1
             idx4 = ◺(d) * j
             idx7, idx8 = d^2 * (j - 1) + 1, d^2 * j
