@@ -74,13 +74,6 @@ function duplication(n::Int)
     D
 end
 
-"""
-    vech(A::AbstractVecOrMat)
-
-Return lower triangular part of `A`.
-"""
-vech(A::AbstractVecOrMat) = [A[i, j] for i in 1:size(A, 1), j in 1:size(A, 2) if i ≥ j]
-
 function commutation(m::Int, n::Int)
     K = zeros(Int, m * n, m * n)
     colK = 1

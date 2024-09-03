@@ -42,6 +42,7 @@ abstract type VCModel end
 include("MRVCModel.jl")
 include("MRTVCModel.jl")
 include("multivariate_calculus.jl")
+include("utils.jl")
 include("reml.jl")
 include("fit.jl")
 include("eigen.jl")

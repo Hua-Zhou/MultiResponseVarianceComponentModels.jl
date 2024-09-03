@@ -8,7 +8,7 @@ const MRVCModels = MultiResponseVarianceComponentModels
 
 rng = MersenneTwister(123)
 
-n, p, d, m = 855, 3, 4, 3
+n, p, d, m, niter = 855, 3, 4, 3, 10
 X = [ones(n) randn(rng, n, p - 1)] # design matrix including intercept
 # V[1] is an AR1(ρ) matrix, with entries ρ^|i-j|
 # V[2] has entries i * (n - j + 1) for j ≥ i, then scaled to be a correlation matrix
@@ -36,7 +36,7 @@ Y = reshape(y, n, d)
 model = MRVCModel(Y, X, V)
 
 @testset "fit! (full rank) by MLE with MM" begin
-    @time history = MRVCModels.fit!(model, algo = :MM, maxiter = 100)
+    @time history = MRVCModels.fit!(model, algo = :MM, maxiter = niter)
     println("B_true:")
     display(B_true)
     println()
@@ -52,7 +52,7 @@ model = MRVCModel(Y, X, V)
 end
 
 @testset "fit! (full rank) by MLE with EM" begin
-    @time history = MRVCModels.fit!(model, algo = :EM, maxiter = 100)
+    @time history = MRVCModels.fit!(model, algo = :EM, maxiter = niter)
     println("B_true:")
     display(B_true)
     println()
