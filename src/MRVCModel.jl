@@ -240,6 +240,8 @@ function MRVCModel(
         )
 end
 
+const MultiResponseVarianceComponentModel = MRVCModel
+
 MRVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
     MRVCModel(Y, reshape(x, length(x), 1), V; kwargs...)
 
@@ -259,4 +261,3 @@ MRVCModel(Y, X, V::AbstractMatrix; kwargs...) = MRVCModel(Y, X, [V]; kwargs...)
 
 MRVCModel(Y, V::AbstractMatrix; kwargs...) = MRVCModel(Y, [V]; kwargs...)
 
-const MultiResponseVarianceComponentModel = MRVCModel
