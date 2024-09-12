@@ -1,4 +1,4 @@
-struct SimpleMRVCModel{T<:BlasReal, K, VarCompTypes<:NTuple{K,VarCompStructure{T}}} <: VCModel
+struct SimpleMRVCModel{T<:BlasReal, K, VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}}} <: VCModel
     # data
     Y                       :: Matrix{T}
     X                       :: Matrix{T}
@@ -124,7 +124,7 @@ function SimpleMRVCModel(
         Σcov = nothing
     end
 
-    SimpleMRVCModel{T,K,NTuple{K,VarCompStructure{T}}}(
+    SimpleMRVCModel{T,K,typeof(VarComp)}(
         Y, Xmat,
         B, VarComp, Ω,
         R, Ω⁻¹R, xtx, xty,

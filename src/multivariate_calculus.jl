@@ -12,21 +12,48 @@ Overwrite `Y` with `A ⊗ X + Y`. Same as `Y += kron(A, X)`, but more memory eff
     p, q = size(X)
     mp, nq = size(Y)
     (mp == m * p && nq == n * q) || throw(DimensionMismatch())
-    yidx = firstindex(Y)
-    @inbounds for j in axes(A, 2), l in axes(X, 2), i in axes(A, 1)
-        aij = A[i, j]
-        if !iszero(aij)
-            for k in axes(X, 1)
-                Y[yidx] += aij * X[k, l]
-                yidx += 1
+    @inbounds for j in axes(A, 2), l in axes(X, 2)
+        x_l = view(X, :, l)
+        ycolidx = (j - 1) * q + l
+        for i in axes(A, 1)
+            aij = A[i, j]
+            if !iszero(aij)
+                yrowidx = ((i - 1) * p + 1):(i * p)
+                axpy!(aij, x_l, view(Y, yrowidx, ycolidx))
             end
-        else
-            # if aᵢⱼ == 0, can skip that block of calculations
-            yidx += p
         end
     end
     return Y
 end
+
+@inline function symm_kron_axpy!(
+    A :: AbstractMatrix{T},
+    X :: AbstractMatrix{T},
+    Y :: AbstractMatrix{T}
+    ) where {T}
+    m, n = size(A)
+    p, q = size(X)
+    mp, nq = size(Y)
+    (m != n) && throw(DimensionMismatch())
+    (mp == m * p && nq == n * q) || throw(DimensionMismatch())
+    @inbounds for j in axes(A, 2), l in axes(X, 2)
+        x_l = view(X, :, l)
+        ycolidx = (j - 1) * q + l
+        # Fill in upper triangle of Y
+        for i in 1:j
+            aij = A[i, j]
+            if !iszero(aij)
+                yrowidx = ((i - 1) * p + 1):(i * p)
+                axpy!(aij, x_l, view(Y, yrowidx, ycolidx))
+            end
+        end
+    end
+    # copytri!(Y, 'U')
+    # copytri! is very slow for large matrices
+    return Y
+end
+
+
 
 """
     kron_reduction!(A, B, C; sym = false)
@@ -63,7 +90,7 @@ indicates `A` and `B` are symmetric.
     #         end
     #     end
     # end
-    # above code is less efficient for large matrices A
+    # above code is less efficient for large matrices C
     # easier and simpler to just iterate over blocks
     for j in axes(C, 2), i in axes(C, 1)
         # fill in upper triangle of C

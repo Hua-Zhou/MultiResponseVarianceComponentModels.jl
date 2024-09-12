@@ -70,3 +70,42 @@ end
 @inline function one!(x::Ref{T}) where {T}
     x[] = one(T)
 end
+
+# Useful for large block symmetric matrices, around twice as fast
+@inline function blockcopytri!(
+    X::AbstractMatrix{T}, 
+    m::Int, 
+    n::Int, 
+    uplo::AbstractChar
+    ) where {T}
+    mn = LinearAlgebra.checksquare(X)
+    (mn != m * n) && throw(DimensionMismatch())
+    @inbounds if uplo == 'U'
+        for j in 1:m, i in 1:j
+            rowidx = ((i - 1) * n + 1):(i*n)
+            colidx = ((j - 1) * n + 1):(j*n)
+            Xij = view(X, rowidx, colidx)
+            if i == j
+                copytri!(Xij, 'U')
+            else
+                Xji = view(X, colidx, rowidx)
+                transpose!(Xji, Xij)
+            end
+        end
+    elseif uplo == 'L'
+        for j in 1:m, i in j:m
+            rowidx = ((i - 1) * n + 1):(i*n)
+            colidx = ((j - 1) * n + 1):(j*n)
+            Xij = view(X, rowidx, colidx)
+            if i == j
+                copytri!(Xij, 'L')
+            else
+                Xji = view(X, colidx, rowidx)
+                transpose!(Xji, Xij)
+            end
+        end
+    else
+        throw(ArgumentError(lazy"uplo argument must be 'U' (upper) or 'L' (lower), got $uplo"))
+    end
+    return X
+end
