@@ -53,8 +53,6 @@ end
     return Y
 end
 
-
-
 """
     kron_reduction!(A, B, C; sym = false)
 
@@ -65,7 +63,7 @@ indicates `A` and `B` are symmetric.
 @inline function kron_reduction!(
     A   :: AbstractMatrix{T}, 
     B   :: AbstractMatrix{T},
-    C   :: AbstractMatrix{T},
+    C   :: AbstractMatrix{T};
     sym :: Bool = false
     ) where {T}
     m, n = size(B)
@@ -92,18 +90,18 @@ indicates `A` and `B` are symmetric.
     # end
     # above code is less efficient for large matrices C
     # easier and simpler to just iterate over blocks
-    for j in axes(C, 2), i in axes(C, 1)
-        # fill in upper triangle of C
-        rstartidx = (i - 1) * p + 1 
-        rendidx = i * p
-        cstartidx = (j - 1) * q + 1
-        cendidx = j * q
-        if i ≤ j || sym == false
-            C[i, j] = dot(view(A, rstartidx:rendidx, cstartidx:cendidx), B)
+    for j in axes(C, 2)
+        colidx = ((j - 1) * n + 1):(j * n)
+        for i in axes(C, 1)
+            rowidx = ((i - 1) * m + 1):(i * m) 
+            # fill in upper triangle of C
+            if i ≤ j || ~sym
+                C[i, j] = dot(view(A, rowidx, colidx), B)
+            end
         end
     end
     sym && copytri!(C, 'U')
-    C
+    return C
 end
 
 function duplication(n::Int)
@@ -116,7 +114,7 @@ function duplication(n::Int)
             vechidx += 1
         end
     end
-    D
+    return D
 end
 
 function commutation(m::Int, n::Int)
@@ -127,7 +125,7 @@ function commutation(m::Int, n::Int)
         K[rowK, colK] = 1
         colK += 1
     end
-    K
+    return K
 end
 
 commutation(m::Int) = commutation(m, m)
