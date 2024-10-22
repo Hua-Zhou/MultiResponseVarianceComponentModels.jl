@@ -30,7 +30,7 @@ Base.stride(S::VarCompStructure, i::Int) = stride(S.Σ, i)
 #       ⋮
 #     pardim        :: Int
 #     # working arrays
-#     # `Σ` stores Σ in Minsoo's code/paper and Γ in my manuscript
+#     # `Σ` stores Σ in Minsoo's code/paper ≡ Γ in my manuscript
 #     Σ          :: Matrix{T}
 #     Σrank      :: Int
 #     storage_nd_nd :: Matrix{T}
@@ -38,3 +38,29 @@ Base.stride(S::VarCompStructure, i::Int) = stride(S.Σ, i)
 #     V             :: Matrix{T}
 #     Vrank         :: Int
 # end
+
+"""
+    update_M!(VC::VarCompStructure, Ωinv::Matrix)
+
+Updates the term M.
+"""
+
+# Shared Methods
+function update_M!(VC::VarCompStructure{T}, Ωinv::Matrix{T}) where {T}
+    kron_reduction!(Ωinv, VC.V, VC.storage_dd_1; sym = true)
+end
+
+"""
+    update_N!(VC::VarCompStructure, Ωinv_R::Matrix)
+
+Updates the term N = ̃R̃ᵀVR̃ where R̃ = vec⁻¹(Ω⁻¹ vec(R)), storing R̃ᵀVR̃ in `VC.storage_dd_2`
+"""
+
+function update_N!(VC::VarCompStructure{T}, Ωinv_R::Matrix{T}) where {T}
+    n, d = size(Ωinv_R)
+    # take an n × d slice out of working array
+    VΩinv_R = view(VC.storage_nn, 1:n, 1:d)
+    BLAS.symm!('L', 'L', one(T), VC.V, Ωinv_R, zero(T), VΩinv_R)
+    mul!(VC.storage_dd_2, transpose(Ωinv_R), VΩinv_R)
+    return VC.storage_dd_2
+end

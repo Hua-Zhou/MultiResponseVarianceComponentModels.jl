@@ -81,24 +81,6 @@ function LowRankPlusDiagonal(Σ::Matrix{T}, r::Int, V::Matrix{T}) where {T}
     LowRankPlusDiagonal(F, dg, V)
 end
 
-"""
-    update_N!(VC::LowRankPlusDiagonal, Ωinv_R::Matrix)
-
-Updates the term where ̃R̃ᵀVR̃ where R̃ = vec⁻¹(Ω⁻¹ vec(R)), storing R̃ᵀVR̃ in `VC.storage_dd_2`
-"""
-
-function update_N!(VC::LowRankPlusDiagonal{T}, Ωinv_R::Matrix{T}) where {T}
-    n, d = size(Ωinv_R)
-    VΩinv_R = view(VC.storage_nn, 1:n, 1:d)
-    BLAS.symm!('L', 'L', one(T), VC.V, Ωinv_R, zero(T), VΩinv_R)
-    mul!(VC.storage_dd_2, transpose(Ωinv_R), VΩinv_R)
-    return VC.storage_dd_2
-end
-
-function update_M!(VC::LowRankPlusDiagonal{T}, Ωinv::Matrix{T}) where {T}
-    kron_reduction!(Ωinv, VC.V, VC.storage_dd_1; sym = true)
-end
-
 function update_Ψ!(VC::LowRankPlusDiagonal{T}) where {T}
     M = VC.storage_dd_1
     N = VC.storage_dd_2
@@ -169,6 +151,8 @@ function update_F!(VC::LowRankPlusDiagonal{T}) where {T}
 end
 
 function update_Σ!(VC::LowRankPlusDiagonal{T}) where {T}
+    update_F!(VC)
+    update_Ψ!(VC)
     fill!(VC.Σ, zero(T))
     for i in axes(VC.Σ, 1)
         VC.Σ[i, i] = VC.Ψ[i]

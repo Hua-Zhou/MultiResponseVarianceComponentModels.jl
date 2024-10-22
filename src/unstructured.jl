@@ -3,10 +3,12 @@ struct Unstructured{T} <: VarCompStructure{T}
     L             :: Matrix{T}
     pardim        :: Int
     # working arrays
-    Σ          :: Matrix{T}
-    Σrank      :: Int
+    Σ             :: Matrix{T}
+    Σrank         :: Int
     storage_nd_nd :: Matrix{T}
-    storage_d_d   :: Matrix{T}
+    storage_nn    :: Matrix{T}
+    storage_dd_1  :: Matrix{T}
+    storage_dd_2  :: Matrix{T}
     # Constants
     V             :: Matrix{T}
     Vrank         :: Int
@@ -23,10 +25,11 @@ function Unstructured(Σ::Matrix{T}, V::Matrix{T}) where {T}
     pardim = ◺(d)
     Σrank = rank(Σ)
     storage_nd_nd = Matrix{T}(undef, nd, nd)
-    storage_dd = Matrix{T}(undef, d, d)
+    storage_dd_1 = Matrix{T}(undef, d, d)
+    storage_dd_2 = Matrix{T}(undef, d, d)
     # avoid evaluation of rank(V), only provide it if needed
     Vrank = n
-    return Unstructured{T}(L, pardim, Σ, Σrank, storage_nd_nd, storage_dd, V, Vrank)
+    return Unstructured{T}(L, pardim, Σ, Σrank, storage_nd_nd, storage_dd_1, storage_dd_2, V, Vrank)
 end
 
 function Unstructured(d::Int, V::Matrix{T}) where {T}
