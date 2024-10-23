@@ -27,6 +27,7 @@ struct SimpleMRVCModel{T<:BlasReal, K, VarCompTypes<:Tuple{Vararg{VarCompStructu
     storage_p_p             :: Matrix{T}
     storage_nd_nd           :: Matrix{T}
     storage_pd_pd           :: Matrix{T}
+    storage_md²_md²         :: Matrix{T}
     logl                    :: Vector{T} # log-likelihood
     # standard errors
     Bcov                    :: Matrix{T} # for fisher_B!
@@ -112,6 +113,7 @@ function SimpleMRVCModel(
     storage_p_p      = Matrix{T}(undef, p, p)
     storage_nd_nd    = Matrix{T}(undef, nd, nd)
     storage_pd_pd    = Matrix{T}(undef, pd, pd)
+    storage_md²_md²  = Matrix{T}(undef, K * abs2(d), K * abs2(d))
     logl             = ones(T,1)
     
     if se == true
@@ -132,7 +134,9 @@ function SimpleMRVCModel(
         storage_n_d, storage_n_p, storage_p_d,
         storage_d_d_1, storage_d_d_2, storage_d_d_3, 
         storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
-        storage_p_p, storage_nd_nd, storage_pd_pd, logl,
+        storage_p_p, storage_nd_nd, storage_pd_pd, 
+        storage_md²_md²,
+        logl,
         Bcov, Σcov,
         se, false
         )

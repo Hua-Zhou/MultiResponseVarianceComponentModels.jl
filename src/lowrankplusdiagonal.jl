@@ -7,7 +7,6 @@ struct LowRankPlusDiagonal{T} <: VarCompStructure{T}
     Σ             :: Matrix{T}
     Σrank         :: Int
     storage_nd_nd :: Matrix{T}
-    storage_dd_dd :: Matrix{T}
     storage_nn    :: Matrix{T}
     storage_dd_1  :: Matrix{T}
     storage_dd_2  :: Matrix{T}
@@ -33,7 +32,6 @@ function LowRankPlusDiagonal(F::Matrix{T}, Ψ::Vector{T}, V::Matrix{T}) where {T
     # Here, `Σrank` is not the rank of Σ = FFᵀ + Ψ, but the number of columns in F
     Σrank = r
     storage_nd_nd = Matrix{T}(undef, nd, nd)
-    storage_dd_dd = Matrix{T}(undef, abs2(d), abs2(d))
     storage_nn = Matrix{T}(undef, n, n)
     storage_dd_1 = Matrix{T}(undef, d, d)
     storage_dd_2 = Matrix{T}(undef, d, d)
@@ -44,7 +42,6 @@ function LowRankPlusDiagonal(F::Matrix{T}, Ψ::Vector{T}, V::Matrix{T}) where {T
                                   Σ,
                                   Σrank,
                                   storage_nd_nd,
-                                  storage_dd_dd, 
                                   storage_nn,
                                   storage_dd_1,
                                   storage_dd_2,

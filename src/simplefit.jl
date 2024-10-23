@@ -297,7 +297,7 @@ assuming inverse of covariance matrix `model.Ω` is available at `model.storage_
 """
 function fisher_B!(
     model :: SimpleMRVCModel{T}
-    ) where T <: BlasReal
+    ) where {T}
     Ω⁻¹ = model.storage_nd_nd
     G   = model.storage_pd_pd
     # Gram matrix G = (Id⊗X')Ω⁻¹(Id⊗X) = (X'Ω⁻¹ᵢⱼX)ᵢⱼ, 1 ≤ i,j ≤ d
@@ -341,7 +341,7 @@ function fisher_Σ!(
     end
     # E[-∂logl/∂vechΣ[j]'∂vechΣ[i] = 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd,
     # where W[i] = Id⊗[(Id⊗V[i])Kdn]^(n) and U[i] = W[i]⋅Dd in manuscript
-    Fisher = zeros(T, np, np)
+    Fisher = zeros(T, np, np) # this is a huge matrix md² by md²
     @inbounds for i in 1:np
         # compute 1/2 W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]
         # keep track of indices for each column of W[i]
@@ -367,22 +367,113 @@ function fisher_Σ!(
             Fisher[i, j] /= 2
         end
     end
-    copytri!(Fisher, 'U')
-    # compute 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd
-    vechFisher = zeros(T, m * ◺(d), m * ◺(d))
-    D = duplication(d)
-    for i in 1:m
-        idx1 = ◺(d) * (i - 1) + 1
-        idx2 = ◺(d) * i
-        idx5, idx6 = d^2 * (i - 1) + 1, d^2 * i
-        for j in i:m
-            idx3 = ◺(d) * (j - 1) + 1
-            idx4 = ◺(d) * j
-            idx7, idx8 = d^2 * (j - 1) + 1, d^2 * j
-            vechFisher[idx1:idx2, idx3:idx4] = D' * Fisher[idx5:idx6, idx7:idx8] * D
+    # copytri!(Fisher, 'U')
+    # # compute 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd
+    # vechFisher = zeros(T, m * ◺(d), m * ◺(d))
+    # D = duplication(d)
+    # for i in 1:m
+    #     idx1 = ◺(d) * (i - 1) + 1
+    #     idx2 = ◺(d) * i
+    #     idx5, idx6 = d^2 * (i - 1) + 1, d^2 * i
+    #     for j in i:m
+    #         idx3 = ◺(d) * (j - 1) + 1
+    #         idx4 = ◺(d) * j
+    #         idx7, idx8 = d^2 * (j - 1) + 1, d^2 * j
+    #         vechFisher[idx1:idx2, idx3:idx4] = D' * Fisher[idx5:idx6, idx7:idx8] * D
+    #     end
+    # end
+    # copytri!(vechFisher, 'U')
+    # copyto!(model.Σcov, pinv(vechFisher))
+    return Fisher
+end
+
+function update_fisher_inf!(model:: SimpleMRVCModel{T}) where {T}
+    # n, d = size(model.Y)
+    Ωinv = model.storage_nd_nd
+    ℐ = model.storage_md²_md²
+    d = size(model.Y, 2)
+    update_Ωinv_V!(Ωinv, model.VarComp)
+    update_fisher_inf_ltri!(abs2(d), ℐ, model.VarComp)
+    return ℐ
+end
+
+@generated function update_Ωinv_V!(Ωinv::Matrix{T}, VarComp::VC) where {T, VC<:Tuple}
+    K = length(VC.parameters)
+    op = [:(_update_Ωinv_V!(Ωinv, VarComp[$i])) for i in 1:K]
+    quote
+        $(Expr(:meta, :propagate_inbounds))
+        begin
+            $(op...)
         end
     end
-    copytri!(vechFisher, 'U')
-    copyto!(model.Σcov, pinv(vechFisher))
-    return Fisher
+end
+
+function _update_Ωinv_V!(
+    Ωinv::Matrix{T}, 
+    VC::VarCompStructure{T}
+    ) where {T}
+    n = size(VC.V, 1)
+    d = size(VC.Σ, 1)
+    fill!(VC.storage_nd_nd, zero(T))
+    for j in 1:d, i in j:d
+        jstart = (j - 1) * n + 1
+        jstop = j * n
+        istart = (i - 1) * n + 1
+        istop = i * n
+        Ωinv_ij = view(Ωinv, istart:istop, jstart:jstop)
+        out = view(VC.storage_nd_nd, istart:istop, jstart:jstop)
+        BLAS.symm!('R', 'L', one(T), VC.V, Ωinv_ij, zero(T), out)
+    end
+end
+
+@generated function update_fisher_inf_ltri!(d²::Int, ℐ::Matrix{T}, VarComp::VC) where {T, VC<:Tuple}
+    K = length(VC.parameters)
+    op = Expr[]
+    for j in 1:K
+        for i in j:K
+            push!(op, :(_update_fisher_block!(view(ℐ, (($i-1) * d² + 1):($i*d²), (($j-1) * d² + 1):($j*d²)), VarComp[$i], VarComp[$j])))
+        end
+    end
+    quote
+        $(Expr(:meta, :propagate_inbounds))
+        begin
+            $(op...)
+        end
+        return nothing
+    end
+end
+
+function _update_fisher_block!(
+    ℐpq::AbstractMatrix{T}, 
+    VCp::VarCompStructure{T},
+    VCq::VarCompStructure{T}
+    ) where {T}
+    n = size(VCp.storage_nn, 1)
+    d = size(VCp, 1)
+    Ωinv_Vp = VCp.storage_nd_nd
+    Ωinv_Vq = VCq.storage_nd_nd
+    @inbounds for l in 1:d
+        for k in l:d
+            lstart = (l - 1) * n + 1
+            lstop = l * n
+            kstart = (k - 1) * n + 1
+            kstop = k * n
+            Ωinv_kl = view(Ωinv_Vp, kstart:kstop, lstart:lstop)
+            for j in 1:d
+                for i in j:d
+                    jstart = (j - 1) * n + 1
+                    jstop = j * n
+                    istart = (i - 1) * n + 1
+                    istop = i * n
+                    Ωinv_ij = view(Ωinv_Vq, istart:istop, jstart:jstop)
+                    cidx = (l - 1) * d + j
+                    ridx = (k - 1) * d + i
+                    ℐpq[ridx, cidx] = dot(transpose(Ωinv_ij), Ωinv_kl)
+                end
+            end
+            copytri!(view(ℐpq, ((k - 1) * d + 1):(k * d), ((l - 1) * d + 1):(l * d)), 'L')
+        end
+    end
+    ℐpq ./= 2
+    copytri!(ℐpq, 'L')
 end
