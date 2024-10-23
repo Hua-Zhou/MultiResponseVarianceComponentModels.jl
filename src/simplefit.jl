@@ -188,7 +188,7 @@ function update_Σ!(
     for k in eachindex(model.VarComp)
         update_M!(model.VarComp[k], Ω⁻¹)
         update_N!(model.VarComp[k], model.Ω⁻¹R)
-        update_Σ!(model.VarComp[k])
+        update_Σ!(model.VarComp[k], Val(algo))
     end
     update_Ω!(model)
     # model.Σ

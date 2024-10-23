@@ -188,7 +188,7 @@ function update_F!(VC::LowRankPlusDiagonal{T}) where {T}
     return nothing
 end
 
-function update_Σ!(VC::LowRankPlusDiagonal{T}) where {T}
+function update_Σ!(VC::LowRankPlusDiagonal{T}, ::Val{:MM}) where {T}
     # F(n+1) is a function of F(n) and Ψ(n)
     # depends on Ψ(n), so must be updated first to agree with the math
     update_F!(VC)

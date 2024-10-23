@@ -56,7 +56,7 @@ function initialize!(VC::Unstructured{T}) where {T}
     return nothing
 end
 
-function update_Σ!(VC::Unstructured{T}) where {T}
+function update_Σ!(VC::Unstructured{T}, ::Val{:MM}) where {T}
     d = size(VC, 1)
     M = VC.storage_dd_1
     N = VC.storage_dd_2
@@ -100,6 +100,26 @@ function update_Σ!(VC::Unstructured{T}) where {T}
     BLAS.trsm!('R', 'L', 'N', 'N', one(T), Lₘ, VC.Σ)
     # Left multiply by L⁻ᵀ
     BLAS.trsm!('L', 'L', 'T', 'N', one(T), Lₘ, VC.Σ)
+    # Solve for parameters L
+    LAPACK.potrf!('L', copyto!(VC.L, VC.Σ))
+    tril!(VC.L)
+    return VC.Σ
+end
+
+function update_Σ!(VC::Unstructured{T}, ::Val{:EM}) where {T}
+    d = size(VC, 1)
+    M = VC.storage_dd_1
+    N = VC.storage_dd_2
+    C = VC.storage_dd_3
+    C .= (N .- M) ./ VC.Σrank
+    mul!(M, C, VC.Σ)
+    for j in 1:d
+        M[j, j] += 1
+    end
+    mul!(VC.Σ, copyto!(N, VC.Σ), M)
+    # Project to 𝕊
+    transpose!(C, VC.Σ)
+    VC.Σ .= (VC.Σ .+ C) ./ 2
     # Solve for parameters L
     LAPACK.potrf!('L', copyto!(VC.L, VC.Σ))
     tril!(VC.L)
