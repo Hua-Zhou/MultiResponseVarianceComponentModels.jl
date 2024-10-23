@@ -117,7 +117,7 @@ function SimpleMRVCModel(
     if se == true
         Bcov           = Matrix{T}(undef, pd, pd)
         # TODO: Σcov has to be initialized after VarCompStructures are known
-        dimΣvcov       = sum(x -> getfield(x,:pardim), VarComp)
+        dimΣvcov       = sum(x -> getfield(x, :pardim), VarComp)
         Σcov           = Matrix{T}(undef, dimΣvcov, dimΣvcov)
     else
         Bcov = nothing
