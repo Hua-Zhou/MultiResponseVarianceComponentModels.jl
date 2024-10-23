@@ -6,6 +6,7 @@ struct Unstructured{T} <: VarCompStructure{T}
     Σ             :: Matrix{T}
     Σrank         :: Int
     storage_nd_nd :: Matrix{T}
+    storage_dd_dd :: Matrix{T}
     storage_nn    :: Matrix{T}
     storage_dd_1  :: Matrix{T}
     storage_dd_2  :: Matrix{T}
@@ -25,8 +26,9 @@ function Unstructured(Σ::Matrix{T}, V::Matrix{T}) where {T}
     tril!(L)
     pardim = ◺(d)
     Σrank = rank(Σ)
-    storage_nn = Matrix{T}(undef, n, n)
     storage_nd_nd = Matrix{T}(undef, nd, nd)
+    storage_dd_dd = Matrix{T}(undef, abs2(d), abs2(d))
+    storage_nn = Matrix{T}(undef, n, n)
     storage_dd_1 = Matrix{T}(undef, d, d)
     storage_dd_2 = similar(storage_dd_1)
     storage_dd_3 = similar(storage_dd_1)
@@ -34,8 +36,9 @@ function Unstructured(Σ::Matrix{T}, V::Matrix{T}) where {T}
     Vrank = n
     return Unstructured{T}(L, pardim, 
                            Σ, Σrank,
-                           storage_nn,
                            storage_nd_nd, 
+                           storage_dd_dd,
+                           storage_nn,
                            storage_dd_1, 
                            storage_dd_2, 
                            storage_dd_3, 

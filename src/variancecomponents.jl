@@ -64,3 +64,43 @@ function update_N!(VC::VarCompStructure{T}, Ωinv_R::Matrix{T}) where {T}
     mul!(VC.storage_dd_2, transpose(Ωinv_R), VΩinv_R)
     return VC.storage_dd_2
 end
+
+function update_fisher_inf!(VC::VarCompStructure{T}, Ωinv::Matrix{T}) where {T}
+    n = size(VC.storage_nn, 1)
+    d = size(VC, 1)
+    fill!(VC.storage_nd_nd, zero(T))
+    for j in 1:d, i in j:d
+        jstart = (j - 1) * n + 1
+        jstop = j * n
+        istart = (i - 1) * n + 1
+        istop = i * n
+        Ωinv_ij = view(Ωinv, istart:istop, jstart:jstop)
+        out = view(VC.storage_nd_nd, istart:istop, jstart:jstop)
+        BLAS.symm!('R', 'L', one(T), VC.V, Ωinv_ij, zero(T), out)
+    end
+    Ωinv_V = VC.storage_nd_nd
+    ℱ = VC.storage_dd_dd
+    for l in 1:d
+        for k in l:d
+            lstart = (l - 1) * n + 1
+            lstop = l * n
+            kstart = (k - 1) * n + 1
+            kstop = k * n
+            Ωinv_kl = view(Ωinv_V, kstart:kstop, lstart:lstop)
+            for j in 1:d
+                for i in j:d
+                    jstart = (j - 1) * n + 1
+                    jstop = j * n
+                    istart = (i - 1) * n + 1
+                    istop = i * n
+                    Ωinv_ij = view(Ωinv_V, istart:istop, jstart:jstop)
+                    cidx = (l - 1) * d + j
+                    ridx = (k - 1) * d + i
+                    ℱ[ridx, cidx] = dot(transpose(Ωinv_ij), Ωinv_kl)
+                end
+            end
+            copytri!(view(ℱ, ((k-1) * d + 1):(k*d), ((l-1) * d + 1):(l * d)), 'L')
+        end
+    end
+    return ℱ ./= 2
+end

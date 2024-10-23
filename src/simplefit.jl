@@ -195,37 +195,6 @@ function update_Σ!(
 end
 
 """
-    update_Σk!(model::SimpleMRVCModel, k, Val(:EM))
-
-EM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
-`model.Ω⁻¹R` is precomputed.
-"""
-function update_Σk!(
-    model :: SimpleMRVCModel{T},
-    k     :: Integer,
-          :: Val{:EM}
-    ) where {T}
-    d   = size(model.Y, 2)
-    Ω⁻¹ = model.storage_nd_nd
-    # storage_d_d_1 = gradient of tr[Ω⁻¹(Σ[k]⊗V[k])] = the M[k] matrix in manuscript
-    kron_reduction!(Ω⁻¹, model.V[k], model.storage_d_d_1; sym = true)
-    # storage_d_d_2 = R'V[k]R
-    mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
-    mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
-    # storage_d_d_2 = (R'V[k]R - M[k]) / rank[k]
-    model.storage_d_d_2 .= (model.storage_d_d_2 .- model.storage_d_d_1) ./ model.V_rank[k]
-    mul!(model.storage_d_d_1, model.storage_d_d_2, model.Σ[k])
-    @inbounds for j in 1:d
-        model.storage_d_d_1[j, j] += 1
-    end
-    mul!(model.Σ[k], copyto!(model.storage_d_d_2, model.Σ[k]), model.storage_d_d_1)
-    # enforce symmetry
-    copytri!(model.Σ[k], 'U')
-    model.Σ[k]
-end
-
-"""
     update_B!(model::SimpleMRVCModel)
 
 Update the regression coefficients `model.B`, assuming inverse of 
@@ -357,15 +326,17 @@ assuming inverse of covariance matrix `model.Ω` is available at `model.storage_
 """
 function fisher_Σ!(
     model :: SimpleMRVCModel{T}
-    ) where T <: BlasReal
+    ) where {T}
     Ω⁻¹ = model.storage_nd_nd
-    n, d, m = size(model.Y, 1), size(model.Y, 2), length(model.V)
+    n, d, m = size(model.Y, 1), size(model.Y, 2), length(model.VarComp)
     nd = n * d
-    np = m * d^2
+    np = m * abs2(d)
     for k in 1:m
         for j in 1:d
-            mul!(view(model.storages_nd_nd[k], :, ((j - 1) * n + 1):(j * n)), 
-                view(Ω⁻¹, :, ((j - 1) * n + 1):(j * n)), model.V[k])
+            storage_nd_nd_k = model.VarComp[k].storage_nd_nd
+            mul!(view(storage_nd_nd_k, :, ((j - 1) * n + 1):(j * n)), 
+                 view(Ω⁻¹, :, ((j - 1) * n + 1):(j * n)), 
+                 model.VarComp[k].V)
         end
     end
     # E[-∂logl/∂vechΣ[j]'∂vechΣ[i] = 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd,
@@ -374,18 +345,24 @@ function fisher_Σ!(
     @inbounds for i in 1:np
         # compute 1/2 W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]
         # keep track of indices for each column of W[i]
-        k1     = div(i - 1, d^2) + 1 # 1 ≤ k1 ≤ m to choose V[k]
-        d2idx1 = mod1(i, d^2) # 1 ≤ d2idx ≤ d² to choose column of W[i]
+        k1     = div(i - 1, abs2(d)) + 1 # 1 ≤ k1 ≤ m to choose V[k]
+        d2idx1 = mod1(i, abs2(d)) # 1 ≤ d2idx ≤ d² to choose column of W[i]
         ddidx1 = div(d2idx1 - 1, d) # 0 ≤ ddidx ≤ d - 1 to choose columns of Ω⁻¹
         dridx1 = mod1(d2idx1, d) # 1 ≤ dridx ≤ d to choose columns of Ω⁻¹
         for j in i:np
-            k2     = div(j - 1, d^2) + 1
-            d2idx2 = mod1(j, d^2)
+            k2     = div(j - 1, abs2(d)) + 1
+            d2idx2 = mod1(j,    abs2(d))
             ddidx2 = div(d2idx2 - 1, d)
             dridx2 = mod1(d2idx2, d)
             for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
-                Fisher[i, j] += dot(view(model.storages_nd_nd[k1], row, (ddidx1 * n + 1):(ddidx1 * n + n)), 
-                    view(model.storages_nd_nd[k2], (n * (dridx1 - 1) + 1):(n * dridx1), dridx2 * n - n + col))
+                storage_nd_nd_k1 = model.VarComp[k1].storage_nd_nd
+                storage_nd_nd_k2 = model.VarComp[k2].storage_nd_nd
+                Fisher[i, j] += dot(view(storage_nd_nd_k1,
+                                         row, (ddidx1 * n + 1):(ddidx1 * n + n)), 
+                                    view(storage_nd_nd_k2, 
+                                         (n * (dridx1 - 1) + 1):(n * dridx1), 
+                                         dridx2 * n - n + col)
+                                    )
             end
             Fisher[i, j] /= 2
         end
@@ -407,4 +384,5 @@ function fisher_Σ!(
     end
     copytri!(vechFisher, 'U')
     copyto!(model.Σcov, pinv(vechFisher))
+    return Fisher
 end
