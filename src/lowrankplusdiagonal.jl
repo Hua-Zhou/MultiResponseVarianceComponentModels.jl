@@ -71,9 +71,8 @@ function LowRankPlusDiagonal(Σ::Matrix{T}, r::Int, V::Matrix{T}) where {T}
         end
     end
     # Initialize dg with the residual, diag(Σ - FFᵀ)
-    dg = diag(Σ - F * transpose(F))
     # ensure initial point is positive
-    dg .+= T(1e-6)
+    dg = diag(Σ) .- vec(sum(abs2, F; dims = 2)) .+ T(1e-8)
     LowRankPlusDiagonal(F, dg, V)
 end
 
@@ -94,7 +93,7 @@ function initialize!(VC::LowRankPlusDiagonal{T}) where {T}
     end
     # Initialize dg with the residual, diag(Σ - FFᵀ)
     # ensure initial point is positive
-    VC.Ψ .= diag(Σ - F * transpose(F)) .+ T(1e-8)
+    VC.Ψ .= diag(Σ) .- vec(sum(abs2, F; dims = 2)) .+ T(1e-8)
     mul!(Σ, F, transpose(F), one(T), zero(T))
     for j in axes(Σ, 2)
         Σ[j, j] += VC.Ψ[j]
@@ -106,12 +105,21 @@ end
     M = VC.storage_dd_1
     N = VC.storage_dd_2
     Ψ = VC.Ψ
-    rankedness = size(VC, 1)
+    temp_dg = view(VC.Σ, eachindex(Ψ))
+    # Ψ must have at least d - r elements greater than zero
+    rank_bound = length(Ψ) - VC.Σrank
+    rankedness = 0
     @inbounds for i in eachindex(Ψ)
-        Ψ[i] = sqrt(N[i, i] / M[i, i]) * Ψ[i]
-        rankedness -= (Ψ[i] < 1e-8)
+        temp_dg[i] = sqrt(N[i, i] / M[i, i]) * Ψ[i]
+        if temp_dg[i] > 1e-8
+            rankedness += 1
+        end
     end
-    rankedness < VC.Σrank && throw("Ψ has fewer than $(VC.Σrank) elements greater than 1e-8, model may be extremely ill-conditioned!")
+    if rankedness < rank_bound
+        @warn "Ψ update has fewer than $(rank_bound) elements greater than 1e-8, skipping update for Ψ"
+    else
+        copyto!(Ψ, temp_dg)
+    end
     return Ψ
 end
 
@@ -167,13 +175,13 @@ function update_F!(VC::LowRankPlusDiagonal{T}) where {T}
     BLAS.symm!('L', 'L', one(T), C_tilde, H_Winv, zero(T), RHS)
     # Right-hand coefficient
     # Recycle space allocated to W
-    Winv_HᵀC̃H_Winv = W
-    mul!(Winv_HᵀC̃H_Winv, transpose(H_Winv), RHS)
-    # Solve Sylvester Equation M̃ H + H (W⁻¹HᵀC̃HW⁻¹) = C̃HW⁻¹
+    Winv_HtC̃H_Winv = W
+    mul!(Winv_HtC̃H_Winv, transpose(H_Winv), RHS)
+    # Solve Sylvester Equation M̃H + H(W⁻¹HᵀC̃HW⁻¹) = C̃HW⁻¹
     # H .= sylvester(M_tilde, Winv_HᵀC̃H_Winv, RHS)
     # solve by eigendecomposition
     λ_L, Q_L = LAPACK.syev!('V', 'L', M_tilde)
-    λ_R, Q_R = LAPACK.syev!('V', 'L', Winv_HᵀC̃H_Winv)
+    λ_R, Q_R = LAPACK.syev!('V', 'L', Winv_HtC̃H_Winv)
     mul!(H_Winv, transpose(Q_L), RHS)
     mul!(RHS, H_Winv, Q_R)
     for j in 1:r, i in 1:d
@@ -193,6 +201,10 @@ function update_Σ!(VC::LowRankPlusDiagonal{T}, ::Val{:MM}) where {T}
     # depends on Ψ(n), so must be updated first to agree with the math
     update_F!(VC)
     update_Ψ!(VC)
+    # Evaluate FᵀΨ⁻¹F
+    # Ft_Ψinv_F = transpose(VC.F) * (VC.F ./ VC.Ψ)
+    # _, vecs = eigen(Symmetric(Ft_Ψinv_F); sortby = x -> -abs(x))
+    # VC.F .= VC.F * vecs
     BLAS.syrk!('L', 'N', one(T), VC.F, zero(T), VC.Σ)
     @inbounds for i in axes(VC.Σ, 2)
         VC.Σ[i, i] += VC.Ψ[i]
