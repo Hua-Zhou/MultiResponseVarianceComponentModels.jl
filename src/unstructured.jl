@@ -76,15 +76,13 @@ function update_Σ!(VC::Unstructured{T}, ::Val{:MM}) where {T}
     BLAS.trmm!('L', 'L', 'T', 'N', one(T), Lₘ, C)
     BLAS.trmm!('R', 'L', 'N', 'N', one(T), Lₘ, C)
     # Need symmetric square root of C, C small so syevr! should be fine
-    # eigenvalue upper bound by Gershgorin Circle Theorem
-    radii = view(VC.storage_nn, 1:d)
+    # eigenvalue upper bound by Perron-Frobenius
+    colsums = view(VC.storage_nn, 1:d)
     for j in axes(C, 2), i in axes(C, 1)
-        if i != j 
-            radii[j] += abs(C[i, j])
-        end
+        colsums[j] += C[i, j]
     end
     # LAPACK.syevr! is allocating, which is annoying
-    vals, vecs = LAPACK.syevr!('V', 'A', 'L', C, zero(T), maximum(radii), 1, d, T(1e-8))
+    vals, vecs = LAPACK.syevr!('V', 'A', 'L', C, zero(T), maximum(colsums), 1, d, T(1e-8))
     for j in eachindex(vals)
         vj = view(vecs, :, j)
         if vals[j] > 0
