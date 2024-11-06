@@ -61,7 +61,7 @@ function fit!(
         mul!(S, transpose(model.R), model.R, inv(n), zero(T))
         for j in 1:m
             Vj = model.VarComp[j].V
-            model.VarComp[j].Σ .= model.storage_d_d_1 * (n / (m * tr(Vj)))
+            model.VarComp[j].Σ .= S * (n / (m * tr(Vj)))
             initialize!(model.VarComp[j])
         end
     elseif init == :user
@@ -118,8 +118,9 @@ function fit!(
             break
         end
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)
-            @info "Relative increase in objective function is less than $reltol\n"
+            @info "Relative change in objective function is less than $reltol\n"
             copyto!(model.logl, logl)
+            finalize!(model.VarComp)
             IterativeSolvers.setconv(history, true)
             # if model.se
             #     @info "Calculating standard errors"
@@ -144,6 +145,17 @@ function fit!(
     # end
     log && IterativeSolvers.shrink!(history)
     return history
+end
+
+@generated function finalize!(VarComps::VC) where {VC<:Tuple}
+    K = length(VC.parameters)
+    updates = [:(finalize!(VarComps[$i])) for i in 1:K]
+    quote
+        $(Expr(:meta, :propagate_inbounds))
+        begin
+            $(updates...)
+        end
+    end
 end
 
 """
@@ -278,7 +290,10 @@ function update_Ω!(model::SimpleMRVCModel{T}) where {T}
     return model.Ω
 end
 
-@generated function _update_Ω!(Ω::Matrix{T}, VarComp::VC) where {T, VC<:Tuple}
+@generated function _update_Ω!(
+    Ω::Matrix{T}, 
+    VarComp::VC
+    ) where {T, VC<:Tuple}
     K = length(VC.parameters)
     updates = [:(kron_axpy!(VarComp[$i].Σ, VarComp[$i].V, Ω)) for i in 1:K]
     quote
@@ -367,7 +382,7 @@ function fisher_Σ!(
             Fisher[i, j] /= 2
         end
     end
-    # copytri!(Fisher, 'U')
+    copytri!(Fisher, 'U')
     # # compute 1/2 Dd'W[j]'(Ω⁻¹⊗Ω⁻¹)W[i]Dd
     # vechFisher = zeros(T, m * ◺(d), m * ◺(d))
     # D = duplication(d)
@@ -387,17 +402,19 @@ function fisher_Σ!(
     return Fisher
 end
 
-function update_fisher_inf!(model:: SimpleMRVCModel{T}) where {T}
-    # n, d = size(model.Y)
+function update_fisher_inf!(model::SimpleMRVCModel{T}) where {T}
     Ωinv = model.storage_nd_nd
     ℐ = model.storage_md²_md²
     d = size(model.Y, 2)
     update_Ωinv_V!(Ωinv, model.VarComp)
     update_fisher_inf_ltri!(abs2(d), ℐ, model.VarComp)
-    return ℐ
+    return copytri!(ℐ, 'L')
 end
 
-@generated function update_Ωinv_V!(Ωinv::Matrix{T}, VarComp::VC) where {T, VC<:Tuple}
+@generated function update_Ωinv_V!(
+    Ωinv::Matrix{T}, 
+    VarComp::VC
+    ) where {T, VC<:Tuple}
     K = length(VC.parameters)
     op = [:(_update_Ωinv_V!(Ωinv, VarComp[$i])) for i in 1:K]
     quote

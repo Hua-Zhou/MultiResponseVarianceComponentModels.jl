@@ -123,3 +123,7 @@ function update_Σ!(VC::Unstructured{T}, ::Val{:EM}) where {T}
     tril!(VC.L)
     return VC.Σ
 end
+
+function finalize!(VC::Unstructured{T}) where {T}
+    return nothing
+end

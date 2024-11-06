@@ -201,13 +201,28 @@ function update_Σ!(VC::LowRankPlusDiagonal{T}, ::Val{:MM}) where {T}
     # depends on Ψ(n), so must be updated first to agree with the math
     update_F!(VC)
     update_Ψ!(VC)
-    # Evaluate FᵀΨ⁻¹F
-    # Ft_Ψinv_F = transpose(VC.F) * (VC.F ./ VC.Ψ)
-    # _, vecs = eigen(Symmetric(Ft_Ψinv_F); sortby = x -> -abs(x))
-    # VC.F .= VC.F * vecs
+    # rotate_F!(VC)
     BLAS.syrk!('L', 'N', one(T), VC.F, zero(T), VC.Σ)
     @inbounds for i in axes(VC.Σ, 2)
         VC.Σ[i, i] += VC.Ψ[i]
     end
     return copytri!(VC.Σ, 'L')
+end
+
+function finalize!(VC::LowRankPlusDiagonal{T}) where {T}
+    F = VC.F
+    d, r = size(F)
+    if r > 1
+        # Evaluate FᵀΨ⁻¹F
+        Ψinv_F = view(VC.storage_nn, 1:d, 1:r)
+        @inbounds for j in axes(F, 2), i in axes(F, 1)
+            Ψinv_F[i, j] = F[i, j] / VC.Ψ[i]
+        end
+        Ft_Ψinv_F = view(VC.storage_nn, (d + 1):(d + r), 1:r)
+        mul!(Ft_Ψinv_F, transpose(F), Ψinv_F)
+        _, vecs = LAPACK.syev!('V', 'L', Ft_Ψinv_F)
+        reverse!(vecs; dims = 2)
+        mul!(F, copyto!(Ψinv_F, F), vecs)
+    end
+    return nothing
 end
