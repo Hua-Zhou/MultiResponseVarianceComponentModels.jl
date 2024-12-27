@@ -52,8 +52,8 @@ model = MRVCModel(Y, X, V)
         println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
     end
     println("logl = $(model.logl[1])")
-    display(model.Bcov)
-    display(model.Σcov)
+    # display(model.Bcov)
+    # display(model.Σcov)
 end
 
 @testset "fit! by MLE with EM" begin
@@ -73,8 +73,8 @@ model = MRVCModel(Y, X, V; reml = true)
         println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
     end
     println("logl = $(model.logl[1])")
-    display(model.Bcov_reml)
-    display(model.Σcov)
+    # display(model.Bcov_reml)
+    # display(model.Σcov)
 end
 
 @testset "fit! by REML with EM" begin
