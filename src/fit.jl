@@ -123,7 +123,6 @@ function fit!(
             break
         end
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)
-            @info "Updates converged!"
             copyto!(model.logl, logl)
             IterativeSolvers.setconv(history, true)
             if model.se

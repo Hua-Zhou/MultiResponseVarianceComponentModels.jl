@@ -68,8 +68,8 @@ In this setting, the Fisher information matrix is equivalent to
 where ``\boldsymbol{W}_{ij}`` is the ``d \times d`` matrix that has entries
 ```math
 \begin{aligned}
-(\boldsymbol{W}_{11})_{kl} &= \text{tr}(\boldsymbol{D}^2(\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
-(\boldsymbol{W}_{12})_{kl} &= \text{tr}(\boldsymbol{D}(\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
-(\boldsymbol{W}_{22})_{kl} &= \text{tr}((\boldsymbol{\lambda}_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\boldsymbol{\lambda}_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}).
+(\boldsymbol{W}_{11})_{kl} &= \text{tr}(\boldsymbol{D}^2(\lambda_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\lambda_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
+(\boldsymbol{W}_{12})_{kl} &= \text{tr}(\boldsymbol{D}(\lambda_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\lambda_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}) \\
+(\boldsymbol{W}_{22})_{kl} &= \text{tr}((\lambda_k \boldsymbol{D} + \boldsymbol{I}_n)^{-1}(\lambda_l \boldsymbol{D} + \boldsymbol{I}_n)^{-1}).
 \end{aligned}
 ```

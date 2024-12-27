@@ -29,7 +29,7 @@ export VCModel,
     lrt,
     h2,
     rg,
-    # multivariate_calculus.jl
+    # mvcalculus.jl
     kron_axpy!,
     kron_reduction!,
     vech,
@@ -528,7 +528,7 @@ function Base.show(io::IO, model::VCModel)
     printstyled(io, "$m"; color = :yellow)
 end
 
-include("multivariate_calculus.jl")
+include("mvcalculus.jl")
 include("reml.jl")
 include("fit.jl")
 include("eigen.jl")
