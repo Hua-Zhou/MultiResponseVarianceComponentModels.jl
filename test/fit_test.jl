@@ -20,7 +20,7 @@ V[2] = [j ≥ i ? i * (n - j + 1) : j * (n - i + 1) for i in 1:n, j in 1:n]
 StatsBase.cov2cor!(V[2], [sqrt(V[2][i, i]) for i in 1:n])
 V[3] = Matrix(UniformScaling(1.0), n, n)
 # true parameter values
-B_true = 2rand(p, d) # uniform on [0, 2]
+B_true = 2 * rand(p, d) # uniform on [0, 2]
 Σ_true = [
     Matrix(UniformScaling(0.2), d, d), 
     Matrix(UniformScaling(0.2), d, d),
@@ -35,70 +35,77 @@ Y = reshape(y, n, d)
 
 model = MRVCModel(Y, X, V)
 
-@testset "fit! (full rank) by MLE with MM" begin
-    @time history = MRVCModels.fit!(model, algo = :MM, maxiter = 100)
-    println("B_true:")
-    display(B_true)
-    println()
-    println("B̂:")
-    display(model.B)
-    println()
+@testset "fit! by MLE with MM" begin
+    @time MRVCModels.fit!(model, algo = :MM, verbose = false, maxiter = 100)
+    println("||B_true - B̂|| = $(norm(B_true - model.B))")
     for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - model.Σ[k]))")
-        println()
+        println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
     end
-    display(history)
-    println()
 end
 
-@testset "fit! (full rank) by MLE with EM" begin
-    @time history = MRVCModels.fit!(model, algo = :EM, maxiter = 100)
-    println("B_true:")
-    display(B_true)
-    println()
-    println("B̂:")
-    display(model.B)
-    println()
+@testset "fit! by MLE with EM" begin
+    @time MRVCModels.fit!(model, algo = :EM, verbose = false, maxiter = 100)
+    println("||B_true - B̂|| = $(norm(B_true - model.B))")
     for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - model.Σ[k]))")
-        println()
+        println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
     end
-    display(history)
-    println()
 end
 
 model = MRVCModel(Y, X, V; reml = true)
 
-@testset "fit! (full rank) by REML with MM" begin
-    @time history = MRVCModels.fit!(model, algo = :MM, maxiter = 100)
-    println("B_true:")
-    display(B_true)
-    println()
-    println("B̂:")
-    display(model.B_reml)
-    println()
+@testset "fit! by REML with MM" begin
+    @time MRVCModels.fit!(model, algo = :MM, verbose = false, maxiter = 100)
+    println("||B_true - B̂|| = $(norm(B_true - model.B_reml))")
     for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - model.Σ[k]))")
-        println()
+        println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
     end
-    display(history)
-    println()
 end
 
-@testset "fit! (full rank) by REML with EM" begin
-    @time history = MRVCModels.fit!(model, algo = :EM, maxiter = 100)
-    println("B_true:")
-    display(B_true)
-    println()
-    println("B̂:")
-    display(model.B_reml)
-    println()
+@testset "fit! by REML with EM" begin
+    @time MRVCModels.fit!(model, algo = :EM, verbose = false, maxiter = 100)
+    println("||B_true - B̂|| = $(norm(B_true - model.B_reml))")
     for k in 1:m
-        println("||Σ_true[$k] - Σ̂[$k]||=$(norm(Σ_true[k] - model.Σ[k]))")
-        println()
+        println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
     end
-    display(history)
-    println()
+end
+
+m = 2
+# V[1] has entries i * (n - j + 1) for j ≥ i, then scaled to be a correlation matrix
+# V[2] is identity
+V = Vector{Matrix{Float64}}(undef, m)
+V[1] = [j ≥ i ? i * (n - j + 1) : j * (n - i + 1) for i in 1:n, j in 1:n]
+StatsBase.cov2cor!(V[1], [sqrt(V[1][i, i]) for i in 1:n])
+V[2] = Matrix(UniformScaling(1.0), n, n)
+# true parameter values
+Σ_true = [
+    Matrix(UniformScaling(0.2), d, d), 
+    Matrix(UniformScaling(0.6), d, d)
+    ]
+Ω_true = zeros(n * d, n * d)
+for k in 1:m
+    Ω_true .+= kron(Σ_true[k], V[k])
+end
+y = vec(X * B_true) + cholesky(Symmetric(Ω_true)).L * randn(rng, n * d)
+Y = reshape(y, n, d)
+
+model = MRTVCModel(Y, X, V)
+
+@testset "fit! two component by MLE with MM" begin
+    @time MRVCModels.fit!(model, algo = :MM, verbose = false, maxiter = 100)
+    println("||B_true - B̂|| = $(norm(B_true - model.B))")
+    for k in 1:m
+        println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
+    end
+end
+
+model = MRTVCModel(Y, X, V; reml = true)
+
+@testset "fit! two component by REML with MM" begin
+    @time MRVCModels.fit!(model, algo = :MM, verbose = false, maxiter = 100)
+    println("||B_true - B̂|| = $(norm(B_true - model.B_reml))")
+    for k in 1:m
+        println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
+    end
 end
 
 # @testset "log-likelihood at the truth" begin
