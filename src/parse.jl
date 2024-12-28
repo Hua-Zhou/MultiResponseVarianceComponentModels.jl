@@ -5,8 +5,8 @@ Perform a variation of the likelihood ratio test for univariate variance compone
 Molenberghs and Verbeke 2007 with model1 and model0 being the full and nested models, respectively.
 """
 function lrt(
-    model1 :: MRVCModel,
-    model0 :: MRVCModel
+    model1 :: VCModel,
+    model0 :: VCModel
     )
     df = length(model1.V) - length(model0.V)
     @assert df > 0
@@ -19,18 +19,16 @@ function lrt(
 end
 
 """
-    h2(model::MRVCModel)
+    h2(model::VCModel)
 
 Calculate heritability estimates and their standard errors, assuming that all variance components 
 capture genetic effects except the last term. Also return total heritability from sum of individual 
 contributions and its standard error.
 """
-function h2(
-    model :: MRVCModel{T}
-    ) where T <: BlasReal
+function h2(model::VCModel)
     m, d = length(model.Σ), size(model.Σ[1], 1)
-    h2s  = zeros(T, m, d)
-    ses  = zeros(T, m, d)
+    h2s  = zeros(eltype(model.Y), m, d)
+    ses  = zeros(eltype(model.Y), m, d)
     tot  = sum([model.Σ[l] for l in 1:m])
     idx  = findvar(d)
     s    = ◺(d)
@@ -65,17 +63,15 @@ function findvar(d::Int)
 end
 
 """
-    rg(model::MRVCModel)
+    rg(model::VCModel)
 
 Calculate genetic/residual correlation estimates and their standard errors.
 """
-function rg(
-    model :: MRVCModel{T}
-    ) where T <: BlasReal
+function rg(model::VCModel)
     m, d = length(model.Σ), size(model.Σ[1], 1)
     @assert d > 1
-    rgs = [zeros(T, d, d) for _ in 1:m]
-    ses = [ones(T, d, d) for _ in 1:m]
+    rgs = [zeros(eltype(model.Y), d, d) for _ in 1:m]
+    ses = [ones(eltype(model.Y), d, d) for _ in 1:m]
     idx = findvar(d)
     s   = ◺(d)
     for i in 1:m
