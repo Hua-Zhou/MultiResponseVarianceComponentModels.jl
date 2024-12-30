@@ -11,9 +11,9 @@ function fit!(
     # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
     if model.reml
-        @info "Running $algo algorithm for REML estimation"
+        @info "Running $algo algorithm with generalized eigen-decomposition for REML estimation"
     else
-        @info "Running $algo algorithm for ML estimation"
+        @info "Running $algo algorithm with generalized eigen-decomposition for ML estimation"
     end
     # record iterate history if requested
     history          = ConvergenceHistory(partial = !log)
@@ -69,7 +69,7 @@ function fit!(
             update_B!(model)
             update_res!(model)
         end
-        update_Σ!(model)
+        update_Σ!(model; algo = algo)
         update_Φ!(model)
         mul!(model.R̃Φ, model.R̃, model.Φ)
         logl_prev = logl
@@ -107,6 +107,7 @@ end
 
 function update_Σ!(
     model :: MRTVCModel{T};
+    algo  :: Symbol = :MM
     ) where T <: BlasReal
     n, d = size(model.Ỹ, 1), size(model.Ỹ, 2)
     fill!(model.storage_d_1, zero(T))
@@ -132,49 +133,68 @@ function update_Σ!(
     end
     mul!(model.N1tN1, transpose(model.R̃Φ), model.R̃Φ)
     Φinv = inv(model.Φ)
-    # update Σ[1]
-    lmul!(Diagonal(model.storage_d_1), model.N1tN1)
-    rmul!(model.N1tN1, Diagonal(model.storage_d_1))
-    vals, vecs = eigen!(Symmetric(model.N1tN1))
-    @inbounds for j in 1:length(vals)
-        if vals[j] > 0
-            v = sqrt(sqrt(vals[j]))
-            for i in 1:size(vecs, 1)
-                vecs[i, j] *= v
-            end
-        else
-            for i in 1:size(vecs, 1)
-                vecs[i, j] = 0
-            end
-        end
-    end
-    lmul!(Diagonal(one(T) ./ model.storage_d_1), vecs)
-    mul!(model.storage_d_d_1, transpose(Φinv), vecs)
-    mul!(model.Σ[1], model.storage_d_d_1, transpose(model.storage_d_d_1))
-    # update Σ[2]
-    lmul!(Diagonal(model.storage_d_2), model.N2tN2)
-    rmul!(model.N2tN2, Diagonal(model.storage_d_2))
-    vals, vecs = eigen!(Symmetric(model.N2tN2))
-    @inbounds for j in 1:length(vals)
-        if vals[j] > 0
-            v = sqrt(sqrt(vals[j]))
-            for i in 1:size(vecs, 1)
-                vecs[i, j] *= v
-            end
-        else
-            for i in 1:size(vecs, 1)
-                vecs[i, j] = 0
+    if algo == :MM
+        # update Σ[1]
+        lmul!(Diagonal(model.storage_d_1), model.N1tN1)
+        rmul!(model.N1tN1, Diagonal(model.storage_d_1))
+        vals, vecs = eigen!(Symmetric(model.N1tN1))
+        @inbounds for j in 1:length(vals)
+            if vals[j] > 0
+                v = sqrt(sqrt(vals[j]))
+                for i in 1:size(vecs, 1)
+                    vecs[i, j] *= v
+                end
+            else
+                for i in 1:size(vecs, 1)
+                    vecs[i, j] = 0
+                end
             end
         end
+        lmul!(Diagonal(one(T) ./ model.storage_d_1), vecs)
+        mul!(model.storage_d_d_1, transpose(Φinv), vecs)
+        mul!(model.Σ[1], model.storage_d_d_1, transpose(model.storage_d_d_1))
+        # update Σ[2]
+        lmul!(Diagonal(model.storage_d_2), model.N2tN2)
+        rmul!(model.N2tN2, Diagonal(model.storage_d_2))
+        vals, vecs = eigen!(Symmetric(model.N2tN2))
+        @inbounds for j in 1:length(vals)
+            if vals[j] > 0
+                v = sqrt(sqrt(vals[j]))
+                for i in 1:size(vecs, 1)
+                    vecs[i, j] *= v
+                end
+            else
+                for i in 1:size(vecs, 1)
+                    vecs[i, j] = 0
+                end
+            end
+        end
+        lmul!(Diagonal(one(T) ./ model.storage_d_2), vecs)
+        mul!(model.storage_d_d_1, transpose(Φinv), vecs)
+        mul!(model.Σ[2], model.storage_d_d_1, transpose(model.storage_d_d_1))
+        model.Σ
+    elseif algo == :EM
+        # update Σ[1]
+        @inbounds for j in 1:d
+            λj = model.Λ[j]
+            model.N1tN1[j, j] = model.N1tN1[j, j] - abs2(λj) * abs2(model.storage_d_1[j]) + model.V_rank[1] * λj
+        end
+        model.N1tN1 .= model.N1tN1 ./ model.V_rank[1]
+        mul!(model.storage_d_d_1, model.N1tN1, Φinv)
+        mul!(model.Σ[1], transpose(Φinv), model.storage_d_d_1)
+        # update Σ[2]
+        @inbounds for j in 1:d
+            λj = model.Λ[j]
+            model.N2tN2[j, j] = model.N2tN2[j, j] - abs2(model.storage_d_2[j]) + model.V_rank[2]
+        end
+        model.N2tN2 .= model.N2tN2 ./ model.V_rank[2]
+        mul!(model.storage_d_d_1, model.N2tN2, Φinv)
+        mul!(model.Σ[2], transpose(Φinv), model.storage_d_d_1)
     end
-    lmul!(Diagonal(one(T) ./ model.storage_d_2), vecs)
-    mul!(model.storage_d_d_1, transpose(Φinv), vecs)
-    mul!(model.Σ[2], model.storage_d_d_1, transpose(model.storage_d_d_1))
-    model.Σ
 end
 
 function update_Φ!(
-    model :: MRTVCModel{T};
+    model :: MRTVCModel{T}
     ) where T <: BlasReal
     copy!(model.storage_d_d_1, model.Σ[1])
     copy!(model.storage_d_d_2, model.Σ[2])

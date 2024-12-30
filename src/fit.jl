@@ -11,7 +11,7 @@ reltol::Real        relative tolerance for convergence; default 1e-6
 verbose::Bool       display algorithmic information; default true
 init::Symbol        initialization strategy; :default initializes by least squares, while
     :user uses user-supplied values at model.B and model.Σ
-algo::Symbol        optimization algorithm; :MM (default) or :EM (for MRVCModel)
+algo::Symbol        optimization algorithm; :MM (default) or :EM
 log::Bool           record iterate history or not; default false
 ```
 

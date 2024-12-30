@@ -318,6 +318,7 @@ struct MRTVCModel{T <: BlasReal} <: VCModel
     Φ                       :: Matrix{T}
     Λ                       :: Vector{T}
     logdetΣ2                :: Vector{T}
+    V_rank                  :: Vector{Int}
     # working arrays
     xtx                     :: Matrix{T} # Gram matrix X'X
     xty                     :: Matrix{T} # X'Y
@@ -450,6 +451,7 @@ function MRTVCModel(
     Φ                = Matrix{T}(undef, d, d)
     Λ                = Vector{T}(undef, d)
     logdetΣ2         = zeros(T, 1)
+    V_rank           = [rank(V[k]) for k in 1:m]
     # working arrays
     xtx              = transpose(Xmat) * Xmat
     xty              = transpose(Xmat) * Y
@@ -471,7 +473,7 @@ function MRTVCModel(
     logl             = zeros(T, 1)
     MRTVCModel{T}(
         Y, Ỹ, Xmat, X̃, V, U, D, logdetV2,
-        B, Σ, Φ, Λ, logdetΣ2,
+        B, Σ, Φ, Λ, logdetΣ2, V_rank,
         xtx, xty, ỸΦ, R̃, R̃Φ, N1tN1, N2tN2,
         storage_d_1, storage_d_2, storage_d_d_1, storage_d_d_2,
         storage_p_p, storage_pd, storage_pd_pd, 
