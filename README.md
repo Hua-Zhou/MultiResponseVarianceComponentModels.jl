@@ -8,7 +8,7 @@
 
 MultiResponseVarianceComponentModels.jl is a <a href="https://julialang.org"><img src="https://julialang.org/assets/infra/julia.ico" width="10em"> Julia </a>package that allows fitting and testing multivariate response variance components linear mixed models of form 
 
-<p align="center"><img width="70%" style="border-radius: 5px;" src="docs/src/assets/MRVC.png"></p>
+<p align="center"><img width="80%" style="border-radius: 5px;" src="docs/src/assets/MRVC.png"></p>
 
 ## Installation
 ```julia

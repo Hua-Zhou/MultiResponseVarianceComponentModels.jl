@@ -113,4 +113,29 @@ model  = MRVCModel(Y, X, V)
     # @test norm(model2.Σcov - model.Σcov) ≈ 5.009462139695597e-7
 end
 
+model2 = MRTVCModel(Y, X, V, reml = true)
+model  = MRVCModel(Y, X, V, reml = true)
+
+@testset "fit! two component by REML with EM" begin
+    MRVCModels.fit!(model2, algo = :EM, maxiter = 500)
+    MRVCModels.fit!(model,  algo = :EM, maxiter = 500)
+    println("||B̂_MRTVCModel - B̂_MRVCModel||       = $(norm(model2.B_reml - model.B_reml))")
+    for k in 1:m
+        println("||Σ̂[$k]_MRTVCModel - Σ̂[$k]_MRVCModel|| = $(norm(model2.Σ[k] - model.Σ[k]))")
+    end
+    println("||logl_MRTVCModel - logl_MRVCModel|| = $(abs2(model2.logl[1] - model.logl[1]))")
+    println("||Bcov_MRTVCModel - Bcov_MRVCModel|| = $(norm(model2.Bcov_reml - model.Bcov_reml))")
+    println("||Σcov_MRTVCModel - Σcov_MRVCModel|| = $(norm(model2.Σcov - model.Σcov))")
+    println("||B_true - B̂||       = $(norm(B_true - model.B_reml))")
+    for k in 1:m
+        println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
+    end
+    # @test norm(model2.B_reml - model.B_reml) ≈ 9.777844544033894e-15
+    # @test norm(model2.Σ[1] - model.Σ[1]) ≈ 1.1994372626858826e-14
+    # @test norm(model2.Σ[2] - model.Σ[2]) ≈ 1.7232460901564156e-15
+    # @test abs2(model2.logl[1] - model.logl[1]) ≈ 1.0132962503774589e-23
+    # @test norm(model2.Bcov_reml - model.Bcov_reml) ≈ 2.9216826995302145e-15
+    # @test norm(model2.Σcov - model.Σcov) ≈ 5.890258777783223e-16
+end
+
 end
