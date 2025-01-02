@@ -3,6 +3,9 @@
 ```@index
 ```
 
-```@autodocs
-Modules = [MultiResponseVarianceComponentModels]
+```@docs
+MultiResponseVarianceComponentModels
+MRVCModel
+MRTVCModel
+fit!
 ```

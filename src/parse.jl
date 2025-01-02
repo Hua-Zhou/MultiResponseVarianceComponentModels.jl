@@ -1,5 +1,5 @@
 """
-    lrt(model1::MRVCModel, model0::MRVCModel)
+    lrt(model1::VCModel, model0::VCModel)
 
 Perform a variation of the likelihood ratio test for univariate variance components models as in 
 Molenberghs and Verbeke 2007 with model1 and model0 being the full and nested models, respectively.
