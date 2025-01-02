@@ -1,8 +1,5 @@
 # API
 
-```@index
-```
-
 ```@docs
 MultiResponseVarianceComponentModels
 MRVCModel
