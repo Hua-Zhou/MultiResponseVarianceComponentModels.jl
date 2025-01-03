@@ -9,7 +9,7 @@ d = 4;      # n of responses
 p = 10;     # n of covariates
 m = 5;      # n of variance components
 X = rand(n, p);
-B = rand(p, d)
+B = rand(p, d);
 V = [zeros(n, n) for _ in 1:m]; # kernel matrices
 Σ = [zeros(d, d) for _ in 1:m]; # variance components
 for i in 1:m
@@ -66,11 +66,11 @@ model = MRVCModel(Y, X, V; reml = true)
 Variance components and mean effects estimates and their standard errors can be accessed through:
 ```@repl 1
 model.Σ
-model.B_reml
+model.B_reml # note model.B_reml not model.B
 hcat(vec(B), vec(model.B_reml))
 reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m])
 model.Σcov
-model.Bcov_reml
+model.Bcov_reml # note model.Bcov_reml not model.Bcov
 sqrt.(diag(model.Σcov))
 sqrt.(diag(model.Bcov_reml))
 ```
