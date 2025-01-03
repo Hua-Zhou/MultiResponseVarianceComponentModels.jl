@@ -1,6 +1,6 @@
 """
 __MRVCModels__ stands for __M__ultivariate __R__esponse __V__ariance __C__omponents
-linear mixed __Models__. `MRVCModels.jl` permits maximum likelihood (ML) or residual
+linear mixed __Models__. MRVCModels.jl permits maximum likelihood (ML) or residual
 maximum likelihood (REML) estimation and inference.
 """
 module MultiResponseVarianceComponentModels
@@ -139,7 +139,7 @@ reml::Bool      pursue REML estimation instead of ML estimation; default false
 When there are two variance components, computation can be reduced by avoiding large matrix 
 inversion per iteration, which is achieved with `MRTVCModel` instance. __MRTVCModels__ 
 stands for __M__ultivariate __R__esponse __T__wo __V__ariance __C__omponents
-linear mixed __Models__. `MRVCModel` is more general and is not limited to two variance 
+linear mixed __Models__. `MRVCModel` is more general, since it is not limited to two variance 
 components case. For `MRTVCModel`, the number of variance components must be two.
 """
 function MRVCModel(

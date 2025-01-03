@@ -46,7 +46,7 @@ end
 model = MRVCModel(Y, X, V)
 
 @testset "fit! by MLE with MM" begin
-    @time MRVCModels.fit!(model, algo = :MM, maxiter = 150)
+    @time MRVCModels.fit!(model, algo = :MM, verbose = false, maxiter = 150)
     println("||B_true - B̂|| = $(norm(B_true - model.B))")
     for k in 1:m
         println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
@@ -57,7 +57,7 @@ model = MRVCModel(Y, X, V)
 end
 
 @testset "fit! by MLE with EM" begin
-    @time MRVCModels.fit!(model, algo = :EM, maxiter = 150)
+    @time MRVCModels.fit!(model, algo = :EM, verbose = false, maxiter = 150)
     println("||B_true - B̂|| = $(norm(B_true - model.B))")
     for k in 1:m
         println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
@@ -67,7 +67,7 @@ end
 model = MRVCModel(Y, X, V; reml = true)
 
 @testset "fit! by REML with MM" begin
-    @time MRVCModels.fit!(model, algo = :MM, maxiter = 150)
+    @time MRVCModels.fit!(model, algo = :MM, verbose = false, maxiter = 150)
     println("||B_true - B̂|| = $(norm(B_true - model.B_reml))")
     for k in 1:m
         println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")
@@ -78,7 +78,7 @@ model = MRVCModel(Y, X, V; reml = true)
 end
 
 @testset "fit! by REML with EM" begin
-    @time MRVCModels.fit!(model, algo = :EM, maxiter = 150)
+    @time MRVCModels.fit!(model, algo = :EM, verbose = false, maxiter = 150)
     println("||B_true - B̂|| = $(norm(B_true - model.B_reml))")
     for k in 1:m
         println("||Σ_true[$k] - Σ̂[$k]|| = $(norm(Σ_true[k] - model.Σ[k]))")

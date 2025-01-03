@@ -17,8 +17,8 @@ log::Bool           record iterate history or not; default false
 
 # Extended help
 MM algorithm is provably faster than EM algorithm in this setting, so recommend trying 
-MM algorithm first, which is by default, and switching to EM algorithm if there are 
-convergence issues.
+MM algorithm first, which is the default algorithm, and switching to EM algorithm only if 
+there are  convergence issues.
 """
 function fit!(
     model   :: MRVCModel{T};
@@ -75,31 +75,13 @@ function fit!(
     else
         throw("Cannot recognize initialization method $init")
     end
-    if model.ymissing
-        # update conditional variance
-        C = model.storage_n_miss_n_miss_1
-        PΩPt = model.storage_nd_nd_miss
-        PΩPt .= @view model.Ω[model.P, model.P]
-        nd = size(model.Ω, 1)
-        n_obs = nd - model.n_miss    
-        sweep!(PΩPt, 1:n_obs)
-        copytri!(PΩPt, 'U')
-        copy!(model.storage_n_miss_n_obs_1, 
-            view(PΩPt, (n_obs + 1):nd, 1:n_obs)) # for conditional mean
-        copy!(model.storage_n_miss_n_miss_1, 
-            view(PΩPt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
-        logl = NaN
-    else
-        logl = loglikelihood!(model)
-    end
+    model.ymissing ? logl = loglikelihood_miss!(model) : logl = loglikelihood!(model)
     toc = time()
-    if !model.ymissing
-        verbose && println("iter = 0, logl = $logl")
-        IterativeSolvers.nextiter!(history)
-        push!(history, :iter    , 0)
-        push!(history, :logl    , logl)
-        push!(history, :itertime, toc - tic)
-    end
+    verbose && println("iter = 0, logl = $logl")
+    IterativeSolvers.nextiter!(history)
+    push!(history, :iter    , 0)
+    push!(history, :logl    , logl)
+    push!(history, :itertime, toc - tic)
     # MM loop
     for iter in 1:maxiter
         IterativeSolvers.nextiter!(history)

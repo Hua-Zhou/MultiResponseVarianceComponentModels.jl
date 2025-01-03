@@ -92,8 +92,8 @@ model2 = MRTVCModel(Y, X, V)
 model  = MRVCModel(Y, X, V)
 
 @testset "fit! two component by MLE with EM" begin
-    MRVCModels.fit!(model2, algo = :EM, maxiter = 500)
-    MRVCModels.fit!(model,  algo = :EM, maxiter = 500)
+    MRVCModels.fit!(model2, algo = :EM, verbose = false, maxiter = 500)
+    MRVCModels.fit!(model,  algo = :EM, verbose = false, maxiter = 500)
     println("||B̂_MRTVCModel - B̂_MRVCModel||       = $(norm(model2.B - model.B))")
     for k in 1:m
         println("||Σ̂[$k]_MRTVCModel - Σ̂[$k]_MRVCModel|| = $(norm(model2.Σ[k] - model.Σ[k]))")
@@ -117,8 +117,8 @@ model2 = MRTVCModel(Y, X, V, reml = true)
 model  = MRVCModel(Y, X, V, reml = true)
 
 @testset "fit! two component by REML with EM" begin
-    MRVCModels.fit!(model2, algo = :EM, maxiter = 500)
-    MRVCModels.fit!(model,  algo = :EM, maxiter = 500)
+    MRVCModels.fit!(model2, algo = :EM, verbose = false, maxiter = 500)
+    MRVCModels.fit!(model,  algo = :EM, verbose = false, maxiter = 500)
     println("||B̂_MRTVCModel - B̂_MRVCModel||       = $(norm(model2.B_reml - model.B_reml))")
     for k in 1:m
         println("||Σ̂[$k]_MRTVCModel - Σ̂[$k]_MRVCModel|| = $(norm(model2.Σ[k] - model.Σ[k]))")
