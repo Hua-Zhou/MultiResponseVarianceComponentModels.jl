@@ -127,7 +127,7 @@ end
         )
 
 Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`, 
-and kernel matrices `V`.
+and kernel matrices `V`. `Y` can harbor `missing` values.
 
 # Keyword arguments
 ```
@@ -163,8 +163,8 @@ function MRVCModel(
     storage_nd_1 = Vector{T}(undef, nd)
     storage_nd_2 = Vector{T}(undef, nd)
     if any(ismissing, Y)
-        @assert reml == false "only ML estimation is possible for missing response"
-        @assert se == false "standard errors cannot be computed for missing response"
+        @assert reml == false "only ML estimation is possible for missing response; set reml = false"
+        @assert se == false "standard errors cannot be computed for missing response; set se = false"
         P, invP, n_miss, Y = permute(Y)
         ymissing = true
         n_obs = nd - n_miss
@@ -376,7 +376,7 @@ end
         )
 
 Create a new `MRTVCModel` instance from response matrix `Y`, predictor matrix `X`, 
-and kernel matrices `V`. The number of variance components must be two.
+and kernel matrices `V`. The number of kernel matrices or variance components must be two.
 
 # Keyword arguments
 ```

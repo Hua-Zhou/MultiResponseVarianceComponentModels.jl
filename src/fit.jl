@@ -35,11 +35,6 @@ function fit!(
     Y, X, V = model.Y, model.X, model.V
     # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
-    if model.reml
-        @info "Running $algo algorithm for REML estimation"
-    else
-        @info "Running $algo algorithm for ML estimation"
-    end
     # record iterate history if requested
     history          = ConvergenceHistory(partial = !log)
     history[:reltol] = reltol
@@ -47,6 +42,7 @@ function fit!(
     IterativeSolvers.reserve!(T      , history, :logl    , maxiter + 1)
     IterativeSolvers.reserve!(Float64, history, :itertime, maxiter + 1)
     # initialization
+    @assert init == :default || init == :user "cannot recognize initialization method; set init to :default or :user"
     tic = time()
     if init == :default
         if p > 0
@@ -69,14 +65,17 @@ function fit!(
             model.Σ[k] .= inv(tr(model.V[k])) .* model.storage_d_d_1
         end
         update_Ω!(model)
-    elseif init == :user
+    else
         if p > 0; update_res!(model); else copy!(model.R, Y); end
         update_Ω!(model)
-    else
-        throw("Cannot recognize initialization method $init")
     end
     model.ymissing ? logl = loglikelihood_miss!(model) : logl = loglikelihood!(model)
     toc = time()
+    if model.reml
+        @info "Running $algo algorithm for REML estimation"
+    else
+        @info "Running $algo algorithm for ML estimation"
+    end
     verbose && println("iter = 0, logl = $logl")
     IterativeSolvers.nextiter!(history)
     push!(history, :iter    , 0)
