@@ -4,10 +4,10 @@
 ```@repl 1
 using MultiResponseVarianceComponentModels, LinearAlgebra, Random
 Random.seed!(6789)
-n = 1_000;  # n of observations
-d = 4;      # n of responses
-p = 10;     # n of covariates
-m = 5;      # n of variance components
+n = 1_000;  # number of observations
+d = 4;      # number of responses
+p = 10;     # number of covariates
+m = 5;      # number of variance components
 X = rand(n, p);
 B = rand(p, d);
 V = [zeros(n, n) for _ in 1:m]; # kernel matrices
@@ -20,7 +20,7 @@ for i in 1:m
 end
 Ω = zeros(n * d, n * d); # overall nd-by-nd covariance matrix Ω
 for i = 1:m
-    Ω += kron(Σ[i], V[i])
+    kron_axpy!(Σ[i], V[i], Ω) # Ω = Σ[1]⊗V[1] + ... + Σ[m]⊗V[m]
 end
 Ωchol = cholesky(Ω);
 Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
@@ -101,16 +101,21 @@ function simulate(n, d, p, m)
     B = rand(p, d)
     V = [zeros(n, n) for _ in 1:m]
     Σ = [zeros(d, d) for _ in 1:m]
-    Ω = zeros(n * d, n * d)
     for i in 1:m
         Vi = randn(n, n)
         mul!(V[i], transpose(Vi), Vi)
         Σi = randn(d, d)
         mul!(Σ[i], transpose(Σi), Σi)
-        kron_axpy!(Σ[i], V[i], Ω) # Ω = Σ[1]⊗V[1] + ... + Σ[m]⊗V[m]
     end
-    Ωchol = cholesky(Ω)
-    Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
+    Y = X * B
+    for i in 1:m
+        Z = randn(n, d)
+        Σchol = cholesky(Σ[i])
+        Vchol = cholesky(V[i])
+        rmul!(Z, transpose(Σchol.L))
+        lmul!(Vchol.L, Z)
+        Y .= Y .+ Z
+    end
     Y, X, V, B, Σ
 end
 Y, X, V, B, Σ = simulate(5_000, 4, 10, 2)

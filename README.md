@@ -25,23 +25,21 @@ using MultiResponseVarianceComponentModels, LinearAlgebra, Random
 # simulation
 begin
     Random.seed!(1234)
-    n = 1_000  # n of observations
-    d = 4      # n of responses
-    p = 10     # n of covariates
-    m = 3      # n of variance components
+    n = 1_000  # number of observations
+    d = 4      # number of responses
+    p = 10     # number of covariates
+    m = 3      # number of variance components
     X = rand(n, p)
-    B = rand(p, d) 
+    B = rand(p, d)
     V = [zeros(n, n) for _ in 1:m] # kernel matrices
     Σ = [zeros(d, d) for _ in 1:m] # variance components
+    Ω = zeros(n * d, n * d) # overall nd-by-nd covariance matrix Ω
     for i in 1:m
         Vi = randn(n, n)
-        copy!(V[i], Vi' * Vi)
+        mul!(V[i], transpose(Vi), Vi)
         Σi = randn(d, d)
-        copy!(Σ[i], Σi' * Σi)
-    end
-    Ω = zeros(n * d, n * d) # overall nd-by-nd covariance matrix Ω
-    for i = 1:m
-        Ω += kron(Σ[i], V[i])
+        mul!(Σ[i], transpose(Σi), Σi)
+        kron_axpy!(Σ[i], V[i], Ω) # Ω = Σ[1]⊗V[1] + ... + Σ[m]⊗V[m]
     end
     Ωchol = cholesky(Ω)
     Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
