@@ -5,7 +5,8 @@ maximum likelihood (REML) estimation and inference.
 """
 module MultiResponseVarianceComponentModels
 
-using IterativeSolvers, LinearAlgebra, Manopt, Manifolds, Distributions, SweepOperator, InvertedIndices
+using IterativeSolvers, LinearAlgebra, Distributions, SweepOperator, InvertedIndices
+# using Manopt, Manifolds
 import LinearAlgebra: BlasReal, copytri!
 export VCModel,
     MultiResponseVarianceComponentModel,
@@ -530,12 +531,12 @@ function Base.show(io::IO, model::VCModel)
     printstyled(io, "$m"; color = :yellow)
 end
 
-include("mvcalculus.jl")
-include("reml.jl")
-include("fit.jl")
 include("eigen.jl")
+include("fit.jl")
 # include("manopt.jl")
-include("parse.jl")
 include("missing.jl")
+include("mvcalculus.jl")
+include("parse.jl")
+include("reml.jl")
 
 end

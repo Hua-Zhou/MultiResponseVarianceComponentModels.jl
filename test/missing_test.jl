@@ -50,6 +50,7 @@ end
 @testset "fit! missing response with MM" begin
     model = MRVCModel(Y_miss, X, V; se = false)
     # @timev MultiResponseVarianceComponentModels.fit!(model)
+    # @test model.logl[1] ≈ -4435.064121104977
 end
 
 end
