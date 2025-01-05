@@ -47,11 +47,11 @@ end
 
 # maximum likelihood estimation
 model = MRVCModel(Y, X, V)
-@timev fit!(model) # ~ 30 seconds
+@timev fit!(model)
 
 # residual maximum likelihood estimation
 model = MRVCModel(Y, X, V; reml = true)
-@timev fit!(model) # ~ 30 seconds
+@timev fit!(model)
 
 # variance components estimates
 model.Σ

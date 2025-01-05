@@ -376,7 +376,7 @@ end
         )
 
 Create a new `MRTVCModel` instance from response matrix `Y`, predictor matrix `X`, 
-and kernel matrices `V`. The number of kernel matrices or variance components must be two.
+and kernel matrices `V`. The number of kernel matrices and hence variance components must be two.
 
 # Keyword arguments
 ```
@@ -534,7 +534,7 @@ include("mvcalculus.jl")
 include("reml.jl")
 include("fit.jl")
 include("eigen.jl")
-include("manopt.jl")
+# include("manopt.jl")
 include("parse.jl")
 include("missing.jl")
 
