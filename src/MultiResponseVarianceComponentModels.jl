@@ -1,42 +1,24 @@
 """
-__MRVCModels__ stands for __M__ultivariate __R__esponse __V__ariance __C__omponents
-linear mixed __Models__. MRVCModels.jl permits maximum likelihood (ML) or residual
-maximum likelihood (REML) estimation and inference.
+__MRVCModels__ stands for __M__ultivariate __R__esponse __V__ariance __C__omponents linear
+mixed __Models__. MRVCModels.jl permits maximum likelihood (ML) or residual maximum
+likelihood (REML) estimation and inference.
 """
 module MultiResponseVarianceComponentModels
 
-using IterativeSolvers, LinearAlgebra, Distributions, SweepOperator, InvertedIndices
-# using Manopt, Manifolds
+using Distributions
+using InvertedIndices
+using IterativeSolvers
+using LinearAlgebra
+# using Manifolds
+# using Manopt
+using SweepOperator
+
 import LinearAlgebra: BlasReal, copytri!
-export VCModel,
-    MultiResponseVarianceComponentModel,
-    MRVCModel,
-    MRTVCModel,
-    # fit.jl or eigen.jl
-    fit!,
-    loglikelihood!,
-    loglikelihood,
-    loglikelihood_reml,
-    update_res!,
-    update_Ω!,
-    update_B!,
-    update_B_reml!,
-    fisher_B!,
-    fisher_B_reml!,
-    fisher_Σ!,
-    # missing.jl
-    permute,
-    # parse.jl
-    lrt,
-    h2,
-    rg,
-    # mvcalculus.jl
-    kron_axpy!,
-    kron_reduction!,
-    vech,
-    ◺,
-    duplication,
-    commutation
+
+export VCModel, MRVCModel, MRTVCModel
+export fit!
+export kron_axpy!, vech
+export lrt, h2, rg
 
 abstract type VCModel end
 
@@ -48,16 +30,16 @@ struct MRVCModel{T <: BlasReal} <: VCModel
     # parameters
     B                       :: Matrix{T}
     Σ                       :: Vector{Matrix{T}}
-    Ω                       :: Matrix{T} # covariance Ω = Σ[1]⊗V[1] + ... + Σ[m]⊗V[m]
+    # working arrays
+    Ω                       :: Matrix{T}
     Γ                       :: Vector{Matrix{T}} # for manopt.jl
     Ψ                       :: Matrix{T}         # for manopt.jl
     Σ_rank                  :: Vector{Int}       # for manopt.jl
-    # working arrays
     V_rank                  :: Vector{Int}
-    R                       :: Matrix{T} # residuals
+    R                       :: Matrix{T}
     Ω⁻¹R                    :: Matrix{T}
-    xtx                     :: Matrix{T} # Gram matrix X'X
-    xty                     :: Matrix{T} # X'Y
+    xtx                     :: Matrix{T}
+    xty                     :: Matrix{T}
     storage_nd_1            :: Vector{T}
     storage_nd_2            :: Vector{T}
     storage_pd              :: Vector{T}
@@ -74,11 +56,11 @@ struct MRVCModel{T <: BlasReal} <: VCModel
     storage_p_p             :: Matrix{T}
     storage_nd_nd           :: Matrix{T}
     storage_pd_pd           :: Matrix{T}
-    logl                    :: Vector{T} # log-likelihood
+    logl                    :: Vector{T}
     # standard errors
     storages_nd_nd          :: Union{Nothing, Vector{Matrix{T}}} # for fisher_Σ!
-    Bcov                    :: Union{Nothing, Matrix{T}} # for fisher_B!
-    Σcov                    :: Union{Nothing, Matrix{T}} # for fisher_Σ!
+    Bcov                    :: Union{Nothing, Matrix{T}}
+    Σcov                    :: Union{Nothing, Matrix{T}}
     # permutation for missing response
     P                       :: Union{Nothing, Vector{Int}}
     invP                    :: Union{Nothing, Vector{Int}}
@@ -90,7 +72,7 @@ struct MRVCModel{T <: BlasReal} <: VCModel
     storage_n_miss_n_obs_3  :: Union{Nothing, Matrix{T}}
     storage_n_miss_n_miss_1 :: Union{Nothing, Matrix{T}} # conditional variance
     storage_n_miss_n_miss_2 :: Union{Nothing, Matrix{T}}
-    storage_n_miss_n_miss_3 :: Union{Nothing, Matrix{T}} 
+    storage_n_miss_n_miss_3 :: Union{Nothing, Matrix{T}}
     storage_nd_nd_miss      :: Union{Nothing, Matrix{T}}
     storage_d_d_miss        :: Union{Nothing, Matrix{T}}
     storage_n_obs           :: Union{Nothing, Vector{T}}
@@ -114,7 +96,7 @@ struct MRVCModel{T <: BlasReal} <: VCModel
     storage_pd_reml         :: Union{Nothing, Vector{T}}
     logl_reml               :: Union{Nothing, Vector{T}}
     Bcov_reml               :: Union{Nothing, Matrix{T}}
-    # indicator for se, reml, missing response
+    # indicators for se, reml, missing response
     se                      :: Bool
     reml                    :: Bool
     ymissing                :: Bool
@@ -127,8 +109,8 @@ end
         V::Union{AbstractMatrix, Vector{<:AbstractMatrix}}
         )
 
-Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`, 
-and kernel matrices `V`. `Y` can harbor `missing` values.
+Create a new `MRVCModel` instance from response matrix `Y`, predictor matrix `X`, and kernel
+matrices `V`. `Y` can harbor `missing` values.
 
 # Keyword arguments
 ```
@@ -137,11 +119,11 @@ reml::Bool      pursue REML estimation instead of ML estimation; default false
 ```
 
 # Extended help
-When there are two variance components, computation can be reduced by avoiding large matrix 
-inversion per iteration, which is achieved with `MRTVCModel` instance. __MRTVCModels__ 
-stands for __M__ultivariate __R__esponse __T__wo __V__ariance __C__omponents
-linear mixed __Models__. `MRVCModel` is more general, since it is not limited to two variance 
-components case. For `MRTVCModel`, the number of variance components must be two.
+When there are two variance components, computation can be reduced by avoiding large matrix
+inversion per iteration, which is achieved with `MRTVCModel` instance. __MRTVCModels__
+stands for __M__ultivariate __R__esponse __T__wo __V__ariance __C__omponents linear mixed
+__Models__. `MRVCModel` is more general, since it is not limited to two variance components
+case. For `MRTVCModel`, the number of variance components must be two.
 """
 function MRVCModel(
     Y      :: Union{AbstractMatrix{T}, AbstractMatrix{Union{Missing, T}}},
@@ -158,7 +140,6 @@ function MRVCModel(
         Xmat = X
     end
     @assert size(Y, 1) == size(Xmat, 1) == size(V[1], 1)
-    # define dimesions
     n, p, d, m = size(Y, 1), size(Xmat, 2), size(Y, 2), length(V)
     nd, pd = n * d, p * d
     storage_nd_1 = Vector{T}(undef, nd)
@@ -183,9 +164,9 @@ function MRVCModel(
         storage_n_obs           = Vector{T}(undef, n_obs)
         storage_n_miss          = Vector{T}(undef, n_miss)
     else
-        P = invP = Y_obs = storage_n_miss_n_obs_1 = storage_n_miss_n_obs_2 = 
+        P = invP = Y_obs = storage_n_miss_n_obs_1 = storage_n_miss_n_obs_2 =
             storage_n_miss_n_obs_3 = storage_n_miss_n_miss_1 = storage_n_miss_n_miss_2 =
-            storage_n_miss_n_miss_3 = storage_nd_nd_miss = storage_d_d_miss = 
+            storage_n_miss_n_miss_3 = storage_nd_nd_miss = storage_d_d_miss =
             storage_n_obs = storage_n_miss = nothing
         n_miss = 0
         ymissing = false
@@ -214,11 +195,11 @@ function MRVCModel(
         storage_pd_reml    = Vector{T}(undef, pd_reml)
         logl_reml          = zeros(T, 1)
     else
-        Y_reml = X_reml = V_reml = B_reml = Ω_reml = R_reml = 
-            storage_nd_nd_reml = storage_pd_pd_reml = 
-            storage_n_p_reml = storage_nd_1_reml = 
-            storage_nd_2_reml = storage_n_d_reml = 
-            storage_p_d_reml = storage_pd_reml = 
+        Y_reml = X_reml = V_reml = B_reml = Ω_reml = R_reml =
+            storage_nd_nd_reml = storage_pd_pd_reml =
+            storage_n_p_reml = storage_nd_1_reml =
+            storage_nd_2_reml = storage_n_d_reml =
+            storage_p_d_reml = storage_pd_reml =
             logl_reml = Bcov_reml = nothing
     end
     if se
@@ -229,14 +210,12 @@ function MRVCModel(
     else
         storages_nd_nd = Bcov = Σcov = Bcov_reml = nothing
     end
-    # parameters
     B                = Matrix{T}(undef, p, d)
     Γ                = [Matrix{T}(undef, d, Σ_rank[k]) for k in 1:m]
     Ψ                = Matrix{T}(undef, d, m)
     Σ                = [Matrix{T}(undef, d, d) for _ in 1:m]
     Ω                = Matrix{T}(undef, nd, nd)
     V_rank           = [rank(V[k]) for k in 1:m]
-    # working arrays
     R                = Matrix{T}(undef, n, d)
     Ω⁻¹R             = Matrix{T}(undef, n, d)
     xtx              = transpose(Xmat) * Xmat
@@ -253,7 +232,7 @@ function MRVCModel(
     storage_d_d_4    = Matrix{T}(undef, d, d)
     storage_d_d_5    = Matrix{T}(undef, d, d)
     storage_d_d_6    = Matrix{T}(undef, d, d)
-    storage_d_d_7    = Matrix{T}(undef, d, d) 
+    storage_d_d_7    = Matrix{T}(undef, d, d)
     storage_p_p      = Matrix{T}(undef, p, p)
     storage_nd_nd    = Matrix{T}(undef, nd, nd)
     storage_pd_pd    = Matrix{T}(undef, pd, pd)
@@ -264,7 +243,7 @@ function MRVCModel(
         V_rank, R, Ω⁻¹R, xtx, xty,
         storage_nd_1, storage_nd_2, storage_pd,
         storage_n_d, storage_n_p, storage_p_d,
-        storage_d_d_1, storage_d_d_2, storage_d_d_3, 
+        storage_d_d_1, storage_d_d_2, storage_d_d_3,
         storage_d_d_4, storage_d_d_5, storage_d_d_6, storage_d_d_7,
         storage_p_p, storage_nd_nd, storage_pd_pd, logl,
         storages_nd_nd, Bcov, Σcov,
@@ -282,26 +261,24 @@ function MRVCModel(
         )
 end
 
-MRVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRVCModel(Y, reshape(x, length(x), 1), V; kwargs...)
 
-MRVCModel(y::AbstractVector, X::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRVCModel(y::AbstractVector, X::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRVCModel(reshape(y, length(y), 1), X, V; kwargs...)
 
-MRVCModel(y::AbstractVector, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRVCModel(y::AbstractVector, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRVCModel(reshape(y, length(y), 1), reshape(x, length(x), 1), V; kwargs...)
 
-MRVCModel(Y::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRVCModel(Y::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRVCModel(Y, nothing, V; kwargs...)
 
-MRVCModel(y::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRVCModel(y::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRVCModel(reshape(y, length(y), 1), nothing, V; kwargs...)
 
 MRVCModel(Y, X, V::AbstractMatrix; kwargs...) = MRVCModel(Y, X, [V]; kwargs...)
 
 MRVCModel(Y, V::AbstractMatrix; kwargs...) = MRVCModel(Y, [V]; kwargs...)
-
-const MultiResponseVarianceComponentModel = MRVCModel
 
 struct MRTVCModel{T <: BlasReal} <: VCModel
     # data
@@ -316,13 +293,13 @@ struct MRTVCModel{T <: BlasReal} <: VCModel
     # parameters
     B                       :: Matrix{T}
     Σ                       :: Vector{Matrix{T}}
+    # working arrays
     Φ                       :: Matrix{T}
     Λ                       :: Vector{T}
     logdetΣ2                :: Vector{T}
     V_rank                  :: Vector{Int}
-    # working arrays
-    xtx                     :: Matrix{T} # Gram matrix X'X
-    xty                     :: Matrix{T} # X'Y
+    xtx                     :: Matrix{T}
+    xty                     :: Matrix{T}
     ỸΦ                      :: Matrix{T}
     R̃                       :: Matrix{T}
     R̃Φ                      :: Matrix{T}
@@ -338,10 +315,10 @@ struct MRTVCModel{T <: BlasReal} <: VCModel
     storage_nd_1            :: Vector{T}
     storage_nd_2            :: Vector{T}
     storage_nd_pd           :: Matrix{T}
-    logl                    :: Vector{T} # log-likelihood
+    logl                    :: Vector{T}
     # standard errors
-    Bcov                    :: Union{Nothing, Matrix{T}} # for fisher_B!
-    Σcov                    :: Union{Nothing, Matrix{T}} # for fisher_Σ!
+    Bcov                    :: Union{Nothing, Matrix{T}}
+    Σcov                    :: Union{Nothing, Matrix{T}}
     # original data for reml
     Y_reml                  :: Union{Nothing, Matrix{T}}
     Ỹ_reml                  :: Union{Nothing, Matrix{T}}
@@ -364,7 +341,7 @@ struct MRTVCModel{T <: BlasReal} <: VCModel
     storage_pd_reml         :: Union{Nothing, Vector{T}}
     logl_reml               :: Union{Nothing, Vector{T}}
     Bcov_reml               :: Union{Nothing, Matrix{T}}
-    # indicator for se, reml
+    # indicators for se, reml
     se                      :: Bool
     reml                    :: Bool
 end
@@ -376,8 +353,8 @@ end
         V::Vector{<:AbstractMatrix}
         )
 
-Create a new `MRTVCModel` instance from response matrix `Y`, predictor matrix `X`, 
-and kernel matrices `V`. The number of kernel matrices and hence variance components must be two.
+Create a new `MRTVCModel` instance from response matrix `Y`, predictor matrix `X`, and
+kernel matrices `V`. The number of kernel matrices and hence variance components must be two.
 
 # Keyword arguments
 ```
@@ -400,7 +377,6 @@ function MRTVCModel(
     end
     @assert length(V) == 2
     @assert size(Y, 1) == size(Xmat, 1) == size(V[1], 1)
-    # define dimesions
     n, p, d, m = size(Y, 1), size(Xmat, 2), size(Y, 2), 2
     nd, pd = n * d, p * d
     if reml
@@ -427,13 +403,13 @@ function MRTVCModel(
         storage_nd_2_reml  = Vector{T}(undef, nd_reml)
         storage_pd_pd_reml = Matrix{T}(undef, pd_reml, pd_reml)
         storage_pd_reml    = Vector{T}(undef, pd_reml)
-        logl_reml          = zeros(T, 1)    
+        logl_reml          = zeros(T, 1)
     else
         Y_reml = Ỹ_reml = X_reml = X̃_reml = V_reml = U_reml = D_reml =
             logdetV2_reml = B_reml = ỸΦ_reml = R̃_reml = R̃Φ_reml =
-            storage_nd_pd_reml = storage_nd_1_reml = 
-            storage_nd_2_reml = storage_pd_pd_reml = storage_pd_reml = 
-            logl_reml = Bcov_reml = nothing        
+            storage_nd_pd_reml = storage_nd_1_reml =
+            storage_nd_2_reml = storage_pd_pd_reml = storage_pd_reml =
+            logl_reml = Bcov_reml = nothing
     end
     if se
         Bcov           = Matrix{T}(undef, pd, pd)
@@ -446,14 +422,12 @@ function MRTVCModel(
     logdetV2 = logdet(V[2])
     Ỹ = transpose(U) * Y
     X̃ = p == 0 ? Matrix{T}(undef, n, 0) : transpose(U) * Xmat
-    # parameters
     B                = Matrix{T}(undef, p, d)
     Σ                = [Matrix{T}(undef, d, d) for _ in 1:m]
     Φ                = Matrix{T}(undef, d, d)
     Λ                = Vector{T}(undef, d)
     logdetΣ2         = zeros(T, 1)
     V_rank           = [rank(V[k]) for k in 1:m]
-    # working arrays
     xtx              = transpose(Xmat) * Xmat
     xty              = transpose(Xmat) * Y
     ỸΦ               = Matrix{T}(undef, n, d)
@@ -477,29 +451,29 @@ function MRTVCModel(
         B, Σ, Φ, Λ, logdetΣ2, V_rank,
         xtx, xty, ỸΦ, R̃, R̃Φ, N1tN1, N2tN2,
         storage_d_1, storage_d_2, storage_d_d_1, storage_d_d_2,
-        storage_p_p, storage_pd, storage_pd_pd, 
+        storage_p_p, storage_pd, storage_pd_pd,
         storage_nd_1, storage_nd_2, storage_nd_pd, logl, Bcov, Σcov,
         Y_reml, Ỹ_reml, X_reml, X̃_reml, V_reml, U_reml, D_reml,
         logdetV2_reml, B_reml, ỸΦ_reml, R̃_reml, R̃Φ_reml,
-        storage_nd_pd_reml, storage_nd_1_reml, 
+        storage_nd_pd_reml, storage_nd_1_reml,
         storage_nd_2_reml, storage_pd_pd_reml, storage_pd_reml,
         logl_reml, Bcov_reml, se, reml
         )
 end
 
-MRTVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRTVCModel(Y::AbstractMatrix, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRTVCModel(Y, reshape(x, length(x), 1), V; kwargs...)
 
-MRTVCModel(y::AbstractVector, X::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRTVCModel(y::AbstractVector, X::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRTVCModel(reshape(y, length(y), 1), X, V; kwargs...)
 
-MRTVCModel(y::AbstractVector, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRTVCModel(y::AbstractVector, x::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRTVCModel(reshape(y, length(y), 1), reshape(x, length(x), 1), V; kwargs...)
 
-MRTVCModel(Y::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRTVCModel(Y::AbstractMatrix, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRTVCModel(Y, nothing, V; kwargs...)
 
-MRTVCModel(y::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) = 
+MRTVCModel(y::AbstractVector, V::Vector{<:AbstractMatrix}; kwargs...) =
     MRTVCModel(reshape(y, length(y), 1), nothing, V; kwargs...)
 
 function Base.show(io::IO, model::VCModel)

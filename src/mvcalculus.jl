@@ -23,14 +23,13 @@ Overwrite `Y` with `A ⊗ X + Y`. Same as `Y += kron(A, X)`, but more memory-eff
 end
 
 """
-    kron_reduction!(A, B, C; sym = false)
+    kron_reduction!(A, B, C, sym = false)
 
-Overwrite `C` with the derivative of `tr(A' (X ⊗ B))` wrt `X`.
-`C[i, j] = dot(Aij, B)`, where `Aij` is the `(i , j)` block of `A`. `sym = true` 
-indicates `A` and `B` are symmetric.
+Overwrite `C` with the derivative of `tr(A' (X ⊗ B))` wrt `X`. `C[i, j] = dot(Aij, B)`,
+where `Aij` is the `(i , j)` block of `A`. `sym = true` indicates `A` and `B` are symmetric.
 """
 @inline function kron_reduction!(
-    A   :: AbstractMatrix{T}, 
+    A   :: AbstractMatrix{T},
     B   :: AbstractMatrix{T},
     C   :: AbstractMatrix{T},
     sym :: Bool = false
@@ -61,6 +60,20 @@ indicates `A` and `B` are symmetric.
     C
 end
 
+"""
+    vech(A::AbstractVecOrMat)
+
+Return lower triangular part of `A`.
+"""
+vech(A::AbstractVecOrMat) = [A[i, j] for i in 1:size(A, 1), j in 1:size(A, 2) if i ≥ j]
+
+"""
+    ◺(n::Int)
+
+Return triangular number `n * (n + 1) / 2`.
+"""
+@inline ◺(n::Int) = (n * (n + 1)) >> 1
+
 function duplication(n::Int)
     D = zeros(Int, abs2(n), ◺(n))
     vechidx = 1
@@ -74,13 +87,6 @@ function duplication(n::Int)
     D
 end
 
-"""
-    vech(A::AbstractVecOrMat)
-
-Return lower triangular part of `A`.
-"""
-vech(A::AbstractVecOrMat) = [A[i, j] for i in 1:size(A, 1), j in 1:size(A, 2) if i ≥ j]
-
 function commutation(m::Int, n::Int)
     K = zeros(Int, m * n, m * n)
     colK = 1
@@ -93,10 +99,3 @@ function commutation(m::Int, n::Int)
 end
 
 commutation(m::Int) = commutation(m, m)
-
-"""
-    ◺(n::Int)
-
-Triangular number `n * (n + 1) / 2`.
-"""
-@inline ◺(n::Int) = (n * (n + 1)) >> 1
