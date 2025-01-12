@@ -40,8 +40,8 @@ Then variance components and mean effects estimates can be accessed through
 ```@repl 1
 model.Σ
 model.B
-hcat(vec(B), vec(model.B))
-reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m])
+hcat(vec(B), vec(model.B)) # comparison of true values and estimates
+reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m]) # comparison of true values and estimates
 ```
 
 # Standard errors
@@ -52,7 +52,7 @@ model.Bcov
 ```
 Corresponding standard error of these estimates are
 ```@repl 1
-sqrt.(diag(model.Σcov))
+sqrt.(diag(model.Σcov)) # m * (binomial(d, 2) + d) parameters
 sqrt.(diag(model.Bcov))
 ```
 

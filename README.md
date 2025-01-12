@@ -3,6 +3,7 @@
 # MultiResponseVarianceComponentModels
 [![Latest](https://img.shields.io/badge/docs-latest-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/stable)
+[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
 [![CI](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/workflows/CI/badge.svg)](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/actions)
 [![Codecov](https://codecov.io/gh/Hua-Zhou/MultiResponseVarianceComponentModels.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Hua-Zhou/MultiResponseVarianceComponentModels.jl)
 
@@ -30,7 +31,7 @@ begin
     p = 10     # number of covariates
     m = 3      # number of variance components
     X = rand(n, p)
-    B = rand(p, d)
+    B = rand(p, d) # fixed effects
     V = [zeros(n, n) for _ in 1:m] # kernel matrices
     Σ = [zeros(d, d) for _ in 1:m] # variance components
     Ω = zeros(n * d, n * d) # overall nd-by-nd covariance matrix Ω
@@ -47,21 +48,11 @@ end
 
 # maximum likelihood estimation
 model = MRVCModel(Y, X, V)
-@timev fit!(model)
+fit!(model)
 
 # residual maximum likelihood estimation
 model = MRVCModel(Y, X, V; reml = true)
-@timev fit!(model)
-
-# variance components estimates
-model.Σ
-# comparison of true values and estimates
-reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m])
-# sampling variance by inverse of Fisher information matrix
-model.Σcov
-diag(model.Σcov) # m * (binomial(d, 2) + d) parameters
-# log-likelihood
-model.logl
+fit!(model)
 ```
 ## References
 - <u>H. Zhou, L. Hu, J. Zhou, and K. Lange: **MM algorithms for variance components models** (2019) ([link](https://doi.org/10.1080/10618600.2018.1529601))</u>
