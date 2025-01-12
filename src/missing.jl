@@ -1,8 +1,8 @@
 """
     update_Σk_miss!(model::MRVCModel, k, Val(:MM))
 
-MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`, 
+MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of
+covariance matrix `model.Ω` is available at `model.storage_nd_nd`,
 `model.Ω⁻¹R` is precomputed, and Ω⁻¹P'CPΩ⁻¹ is available at
 `model.storage_nd_nd_miss`.
 """
@@ -53,8 +53,8 @@ end
 """
     update_B_miss!(model::MRVCModel)
 
-Update the regression coefficients `model.B`, assuming inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd` and 
+Update the regression coefficients `model.B`, assuming inverse of
+covariance matrix `model.Ω` is available at `model.storage_nd_nd` and
 `model.storage_n_miss_n_obs_1` for conditional mean is precomputed.
 """
 function update_B_miss!(
@@ -109,11 +109,11 @@ end
 """
     loglikelihood_miss!(model::MRVCModel)
 
-Overwrite `model.storage_nd_nd` by inverse of the covariance matrix `model.Ω`, 
+Overwrite `model.storage_nd_nd` by inverse of the covariance matrix `model.Ω`,
 overwrite `model.storage_nd` by `U' \\ vec(model.R)`, overwrite
-`model.storage_n_miss_n_miss_1` by conditional variance, precompute 
+`model.storage_n_miss_n_miss_1` by conditional variance, precompute
 `model.storage_n_miss_n_obs_1` for conditional mean, and return the value of
-surrogate Q-function of log-likelihood. Assume `model.Ω` and `model.R` are already 
+surrogate Q-function of log-likelihood. Assume `model.Ω` and `model.R` are already
 updated according to `model.Σ` and `model.B`.
 """
 function loglikelihood_miss!(
@@ -147,17 +147,35 @@ function loglikelihood_miss!(
     PΩPt .= @view model.Ω[model.P, model.P]
     sweep!(PΩPt, 1:n_obs)
     copytri!(PΩPt, 'U')
-    copy!(model.storage_n_miss_n_obs_1, 
+    copy!(model.storage_n_miss_n_obs_1,
         view(PΩPt, (n_obs + 1):nd, 1:n_obs)) # for conditional mean
-    copy!(model.storage_n_miss_n_miss_1, 
+    copy!(model.storage_n_miss_n_miss_1,
         view(PΩPt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
+    # compute Ω⁻¹P'CPΩ⁻¹
+    C = model.storage_n_miss_n_miss_1
+    PΩ⁻¹ = model.storage_nd_nd_miss
+    PΩ⁻¹ .= @view Ω⁻¹[model.P, :]
+    copy!(model.storage_n_miss_n_obs_2,
+        view(PΩ⁻¹, (n_obs + 1):nd, 1:n_obs))
+    copy!(model.storage_n_miss_n_miss_2,
+        view(PΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd))
+    Ω⁻¹PtCPΩ⁻¹ = model.storage_nd_nd_miss
+    mul!(model.storage_n_miss_n_obs_3, C, model.storage_n_miss_n_obs_2)
+    mul!(view(Ω⁻¹PtCPΩ⁻¹, 1:n_obs, 1:n_obs),
+        transpose(model.storage_n_miss_n_obs_2), model.storage_n_miss_n_obs_3)
+    mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, 1:n_obs),
+        transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_obs_3)
+    mul!(model.storage_n_miss_n_miss_3, C, model.storage_n_miss_n_miss_2)
+    mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd),
+        transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
+    copytri!(Ω⁻¹PtCPΩ⁻¹, 'L')
     logl /= -2
 end
 
 """
     permute(Y::AbstractVecOrMat)
 
-Return permutation `P` such that `vec(Y)[P]` rearranges `vec(Y)` with missing values 
+Return permutation `P` such that `vec(Y)[P]` rearranges `vec(Y)` with missing values
 spliced after non-missing values. Also return inverse permutation `invP` such that
 `vec(Y)[P][invP] = vec(Y)`.
 """

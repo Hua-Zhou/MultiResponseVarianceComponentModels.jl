@@ -12,12 +12,11 @@ verbose::Bool       display algorithmic information; default true
 init::Symbol        initialization strategy; :default initializes by least squares, while
     :user uses user-supplied values at model.B and model.Σ
 algo::Symbol        optimization algorithm; :MM (default) or :EM
-log::Bool           record iterate history or not; default false
 ```
 
 # Extended help
-MM algorithm is provably faster than EM algorithm in this setting, so recommend trying 
-MM algorithm first, which is the default algorithm, and switching to EM algorithm only if 
+MM algorithm is provably faster than EM algorithm in this setting, so recommend trying
+MM algorithm first, which is the default algorithm, and switching to EM algorithm only if
 there are  convergence issues.
 """
 function fit!(
@@ -25,18 +24,15 @@ function fit!(
     maxiter :: Integer = 1000,
     reltol  :: Real = 1e-6,
     verbose :: Bool = true,
-    init    :: Symbol = :default, # :default or :user
-    algo    :: Symbol = :MM,
-    log     :: Bool = false,
+    init    :: Symbol = :default,
+    algo    :: Symbol = :MM
     ) where T <: BlasReal
     if model.ymissing
         @assert algo == :MM "only MM algorithm is possible for missing response"
     end
     Y, X, V = model.Y, model.X, model.V
-    # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
-    # record iterate history if requested
-    history          = ConvergenceHistory(partial = !log)
+    history          = ConvergenceHistory()
     history[:reltol] = reltol
     IterativeSolvers.reserve!(Int    , history, :iter    , maxiter + 1)
     IterativeSolvers.reserve!(T      , history, :logl    , maxiter + 1)
@@ -46,7 +42,7 @@ function fit!(
     tic = time()
     if init == :default
         if p > 0
-            # estimate fixed effect coefficients B by ordinary least squares (Cholesky solve)
+            # estimate fixed effect coefficients B by OLS
             copyto!(model.storage_p_p, model.xtx)
             _, info = LAPACK.potrf!('U', model.storage_p_p)
             info > 0 && throw("Design matrix X is rank deficient")
@@ -115,29 +111,69 @@ function fit!(
         end
     end
     if model.reml
-        update_Ω_reml!(model)
-        # need Ω⁻¹ for B
+        n, p = size(model.Y_reml, 1), size(model.X_reml, 2)
+        # update Ω
+        fill!(model.Ω_reml, zero(T))
+        @inbounds for k in 1:m
+            kron_axpy!(model.Σ[k], model.V_reml[k], model.Ω_reml)
+        end
+        # Cholesky of Ω = U'U
         copyto!(model.storage_nd_nd_reml, model.Ω_reml)
-        # Cholesky of covariance Ω = U'U
         _, info = LAPACK.potrf!('U', model.storage_nd_nd_reml)
         info > 0 && throw("Covariance matrix Ω is singular")
+        # assemble pieces for log-likelihood
+        nd = n * d
+        logl = nd * log(2π)
+        @inbounds for i in 1:nd
+            logl += 2log(model.storage_nd_nd_reml[i, i])
+        end
+        # Ω⁻¹ from U
         LAPACK.potri!('U', model.storage_nd_nd_reml)
         copytri!(model.storage_nd_nd_reml, 'U')
-        update_B_reml!(model)
-        copyto!(model.logl_reml, loglikelihood_reml!(model))
-        model.se ? fisher_B_reml!(model) : nothing
+        Ω⁻¹ = model.storage_nd_nd_reml
+        # Gram matrix G = (Id⊗X')Ω⁻¹(Id⊗X) = (X'Ω⁻¹ᵢⱼX)ᵢⱼ, 1 ≤ i,j ≤ d
+        G = model.storage_pd_pd_reml
+        for j in 1:d
+            Ωcidx = ((j - 1) * n + 1):(j * n)
+            Gcidx = ((j - 1) * p + 1):(j * p)
+            for i in 1:j
+                Ωridx = ((i - 1) * n + 1):(i * n)
+                Gridx = ((i - 1) * p + 1):(i * p)
+                Ω⁻¹ᵢⱼ = view(Ω⁻¹, Ωridx, Ωcidx)
+                Gᵢⱼ   = view(G  , Gridx, Gcidx)
+                mul!(model.storage_n_p_reml, Ω⁻¹ᵢⱼ, model.X_reml)
+                mul!(Gᵢⱼ, transpose(model.X_reml), model.storage_n_p_reml)
+            end
+        end
+        copytri!(G, 'U')
+        model.se ? copyto!(model.Bcov_reml, pinv(G)) : nothing
+        # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
+        copyto!(model.storage_nd_1_reml, model.Y_reml)
+        mul!(model.storage_nd_2_reml, Ω⁻¹, model.storage_nd_1_reml)
+        copyto!(model.storage_n_d_reml, model.storage_nd_2_reml)
+        mul!(model.storage_p_d_reml, transpose(model.X_reml), model.storage_n_d_reml)
+        # Cholesky solve
+        _, info = LAPACK.potrf!('U', G)
+        info > 0 && throw("Gram matrix (Id⊗X')Ω⁻¹(Id⊗X) is singular")
+        copyto!(model.storage_pd_reml, model.storage_p_d_reml)
+        LAPACK.potrs!('U', G, model.storage_pd_reml)
+        copyto!(model.B_reml, model.storage_pd_reml)
+        # update R = Y - XB
+        BLAS.gemm!('N', 'N', -one(T), model.X_reml, model.B_reml, one(T), copyto!(model.R_reml, model.Y_reml))
+        copyto!(model.storage_nd_1_reml, model.R_reml)
+        mul!(model.storage_nd_2_reml, Ω⁻¹, model.storage_nd_1_reml)
+        logl += dot(model.storage_nd_1_reml, model.storage_nd_2_reml)
+        copyto!(model.logl_reml, logl / -2)
     end
-    log && IterativeSolvers.shrink!(history)
+    IterativeSolvers.shrink!(history)
     history
 end
 
 """
     update_Σ!(model::MRVCModel)
 
-Update the variance component parameters `model.Σ`, assuming inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`. If
-missing response, assume conditional variance `model.storage_n_miss_n_miss_1`
-is precomputed.
+Update the variance component parameters `model.Σ`, assuming inverse of covariance matrix
+`model.Ω` is available at `model.storage_nd_nd`.
 """
 function update_Σ!(
     model    :: MRVCModel{T};
@@ -150,28 +186,6 @@ function update_Σ!(
     copyto!(model.storage_nd_1, model.R)
     mul!(model.storage_nd_2, Ω⁻¹, model.storage_nd_1)
     copyto!(model.Ω⁻¹R, model.storage_nd_2)
-    if ymissing
-        # compute Ω⁻¹P'CPΩ⁻¹
-        nd = size(Ω⁻¹, 1)
-        n_obs = nd - model.n_miss
-        C = model.storage_n_miss_n_miss_1
-        PΩ⁻¹ = model.storage_nd_nd_miss
-        PΩ⁻¹ .= @view Ω⁻¹[model.P, :]
-        copy!(model.storage_n_miss_n_obs_2,
-            view(PΩ⁻¹, (n_obs + 1):nd, 1:n_obs))
-        copy!(model.storage_n_miss_n_miss_2, 
-            view(PΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd))
-        Ω⁻¹PtCPΩ⁻¹ = model.storage_nd_nd_miss
-        mul!(model.storage_n_miss_n_obs_3, C, model.storage_n_miss_n_obs_2)
-        mul!(view(Ω⁻¹PtCPΩ⁻¹, 1:n_obs, 1:n_obs), 
-            transpose(model.storage_n_miss_n_obs_2), model.storage_n_miss_n_obs_3)
-        mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, 1:n_obs), 
-            transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_obs_3)
-        mul!(model.storage_n_miss_n_miss_3, C, model.storage_n_miss_n_miss_2)
-        mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd), 
-            transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
-        copytri!(Ω⁻¹PtCPΩ⁻¹, 'L')    
-    end
     for k in 1:length(model.V)
         if model.Σ_rank[k] ≥ d
             if ymissing
@@ -190,9 +204,8 @@ end
 """
     update_Σk!(model::MRVCModel, k, Val(:MM))
 
-MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
-`model.Ω⁻¹R` is precomputed.
+MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of covariance matrix
+`model.Ω` is available at `model.storage_nd_nd`, and `model.Ω⁻¹R` is precomputed.
 """
 function update_Σk!(
     model :: MRVCModel{T},
@@ -237,9 +250,8 @@ end
 """
     update_Σk!(model::MRVCModel, k, Val(:EM))
 
-EM update the `model.Σ[k]` assuming it has full rank `d`, inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`, and 
-`model.Ω⁻¹R` is precomputed.
+EM update the `model.Σ[k]` assuming it has full rank `d`, inverse of covariance matrix
+`model.Ω` is available at `model.storage_nd_nd`, and `model.Ω⁻¹R` is precomputed.
 """
 function update_Σk!(
     model :: MRVCModel{T},
@@ -254,7 +266,7 @@ function update_Σk!(
     mul!(model.storage_n_d, model.V[k], model.Ω⁻¹R)
     mul!(model.storage_d_d_2, transpose(model.Ω⁻¹R), model.storage_n_d)
     # storage_d_d_2 = (R'V[k]R - M[k]) / rank[k]
-    model.storage_d_d_2 .= 
+    model.storage_d_d_2 .=
         (model.storage_d_d_2 .- model.storage_d_d_1) ./ model.V_rank[k]
     mul!(model.storage_d_d_1, model.storage_d_d_2, model.Σ[k])
     @inbounds for j in 1:d
@@ -269,8 +281,8 @@ end
 """
     update_B!(model::MRVCModel)
 
-Update the regression coefficients `model.B`, assuming inverse of 
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
+Update the regression coefficients `model.B`, assuming inverse of covariance matrix
+`model.Ω` is available at `model.storage_nd_nd`.
 """
 function update_B!(
     model :: MRVCModel{T}
@@ -311,10 +323,9 @@ end
 """
     loglikelihood!(model::MRVCModel)
 
-Overwrite `model.storage_nd_nd` by inverse of the covariance 
-matrix `model.Ω`, overwrite `model.storage_nd` by `U' \\ vec(model.R)`, and 
-return the log-likelihood. Assume `model.Ω` and `model.R` are 
-already updated according to `model.Σ` and `model.B`.
+Overwrite `model.storage_nd_nd` by inverse of the covariance matrix `model.Ω` and return the
+log-likelihood. Assume `model.Ω` and `model.R` are already updated according to `model.Σ`
+and `model.B`.
 """
 function loglikelihood!(
     model :: MRVCModel{T}
@@ -358,7 +369,7 @@ end
 """
     fisher_B!(model::MRVCModel)
 
-Compute the sampling variance-covariance `model.Bcov` of regression coefficients `model.B`, 
+Compute the sampling variance-covariance `model.Bcov` of regression coefficients `model.B`,
 assuming inverse of covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function fisher_B!(
@@ -387,8 +398,9 @@ end
 """
     fisher_Σ!(model::MRVCModel)
 
-Compute the sampling variance-covariance `model.Σcov` of variance component estimates `model.Σ`, 
-assuming inverse of covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
+Compute the sampling variance-covariance `model.Σcov` of variance component estimates
+`model.Σ`, assuming inverse of covariance matrix `model.Ω` is available at
+`model.storage_nd_nd`.
 """
 function fisher_Σ!(
     model :: MRVCModel{T}
@@ -399,7 +411,7 @@ function fisher_Σ!(
     np = m * d^2
     for k in 1:m
         for j in 1:d
-            mul!(view(model.storages_nd_nd[k], :, ((j - 1) * n + 1):(j * n)), 
+            mul!(view(model.storages_nd_nd[k], :, ((j - 1) * n + 1):(j * n)),
                 view(Ω⁻¹, :, ((j - 1) * n + 1):(j * n)), model.V[k])
         end
     end
@@ -419,7 +431,7 @@ function fisher_Σ!(
             ddidx2 = div(d2idx2 - 1, d)
             dridx2 = mod1(d2idx2, d)
             for (col, row) in enumerate((n * ddidx2 + 1):(n * ddidx2 + n))
-                Fisher[i, j] += dot(view(model.storages_nd_nd[k1], row, (ddidx1 * n + 1):(ddidx1 * n + n)), 
+                Fisher[i, j] += dot(view(model.storages_nd_nd[k1], row, (ddidx1 * n + 1):(ddidx1 * n + n)),
                     view(model.storages_nd_nd[k2], (n * (dridx1 - 1) + 1):(n * dridx1), dridx2 * n - n + col))
             end
             Fisher[i, j] /= 2
@@ -442,4 +454,22 @@ function fisher_Σ!(
     end
     copytri!(vechFisher, 'U')
     copyto!(model.Σcov, pinv(vechFisher))
+end
+
+function project_null(
+    Y :: AbstractVecOrMat{T},
+    X :: AbstractVecOrMat{T},
+    V :: Vector{<:AbstractMatrix{T}}
+    ) where {T <: Real}
+    n, p, m = size(X, 1), size(X, 2), length(V)
+    A = nullspace(transpose(X))
+    s = size(A, 2)
+    Ỹ = transpose(A) * Y
+    Ṽ = [zeros(s, s) for _ in 1:m]
+    storage = zeros(n, s)
+    for i in 1:m
+        mul!(storage, V[i], A)
+        mul!(Ṽ[i], transpose(A), storage)
+    end
+    Ỹ, Ṽ, A
 end

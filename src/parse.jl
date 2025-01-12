@@ -1,7 +1,7 @@
 """
     lrt(model1::VCModel, model0::VCModel)
 
-Perform a variation of the likelihood ratio test for univariate variance components models as in 
+Perform a variation of the likelihood ratio test for univariate variance components models as in
 Molenberghs and Verbeke 2007 with model1 and model0 being the full and nested models, respectively.
 """
 function lrt(
@@ -21,8 +21,8 @@ end
 """
     h2(model::VCModel)
 
-Calculate heritability estimates and their standard errors, assuming that all variance components 
-capture genetic effects except the last term. Also return total heritability from sum of individual 
+Calculate heritability estimates and their standard errors, assuming that all variance components
+capture genetic effects except the last term. Also return total heritability from sum of individual
 contributions and its standard error.
 """
 function h2(model::VCModel)
@@ -53,7 +53,7 @@ function h2(model::VCModel)
 end
 
 function findvar(d::Int)
-    s, r = ◺(d), d 
+    s, r = ◺(d), d
     idx = ones(Int, d)
     for j in 2:length(idx)
         idx[j] = idx[j - 1] + r

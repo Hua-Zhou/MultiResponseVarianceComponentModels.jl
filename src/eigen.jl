@@ -4,14 +4,11 @@ function fit!(
     reltol  :: Real = 1e-6,
     verbose :: Bool = true,
     init    :: Symbol = :default,
-    algo    :: Symbol = :MM,
-    log     :: Bool = false,
+    algo    :: Symbol = :MM
     ) where T <: BlasReal
     Y, X, V = model.Y, model.X, model.V
-    # dimensions
     n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
-    # record iterate history if requested
-    history          = ConvergenceHistory(partial = !log)
+    history          = ConvergenceHistory()
     history[:reltol] = reltol
     IterativeSolvers.reserve!(Int    , history, :iter    , maxiter + 1)
     IterativeSolvers.reserve!(T      , history, :logl    , maxiter + 1)
@@ -100,7 +97,7 @@ function fit!(
         copyto!(model.logl_reml, loglikelihood_reml(model))
         model.se ? fisher_B_reml!(model) : nothing
     end
-    log && IterativeSolvers.shrink!(history)
+    IterativeSolvers.shrink!(history)
     history
 end
 
@@ -328,7 +325,7 @@ end
 """
     fisher_B!(model::MRTVCModel)
 
-Compute the sampling variance-covariance `model.Bcov` of regression coefficients `model.B`, 
+Compute the sampling variance-covariance `model.Bcov` of regression coefficients `model.B`,
 assuming `model.Λ` and `model.Φ` are updated.
 """
 function fisher_B!(
@@ -349,7 +346,7 @@ end
 """
     fisher_B_reml!(model::MRTVCModel)
 
-Compute the sampling variance-covariance `model.Bcov_reml` of regression coefficients `model.B_reml`, 
+Compute the sampling variance-covariance `model.Bcov_reml` of regression coefficients `model.B_reml`,
 assuming `model.Λ` and `model.Φ` are updated.
 """
 function fisher_B_reml!(
@@ -370,7 +367,7 @@ end
 """
     fisher_Σ!(model::MRTVCModel)
 
-Compute the sampling variance-covariance `model.Σcov` of variance component estimates `model.Σ`, 
+Compute the sampling variance-covariance `model.Σcov` of variance component estimates `model.Σ`,
 assuming `model.Λ` and `model.Φ` are updated.
 """
 function fisher_Σ!(

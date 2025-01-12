@@ -20,7 +20,7 @@ V[3] = Matrix(UniformScaling(1.0), n, n)
 # true parameter values
 B_true = 2 * rand(p, d) # uniform on [0, 2]
 Σ_true = [
-    Matrix(UniformScaling(0.2), d, d), 
+    Matrix(UniformScaling(0.2), d, d),
     Matrix(UniformScaling(0.2), d, d),
     Matrix(UniformScaling(0.6), d, d)
     ]
@@ -40,7 +40,7 @@ Y_miss[rand(1:length(Y_miss), n)] .= missing
     Y_miss = Matrix{Union{Float64, Missing}}(missing, size(Y))
     copy!(Y_miss, Y)
     Y_miss[[1, 5, 6, 15, 16]] .= missing
-    P, invP, n_miss, Y_imputed = permute(Y_miss)
+    P, invP, n_miss, Y_imputed = MRVCModels.permute(Y_miss)
     @test P == [2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 1, 5, 6, 15, 16]
     @test invP == [12, 1, 2, 3, 13, 14, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16]
     @test n_miss == 5
@@ -49,7 +49,7 @@ end
 
 @testset "fit! missing response with MM" begin
     model = MRVCModel(Y_miss, X, V; se = false)
-    # @timev MultiResponseVarianceComponentModels.fit!(model)
+    @timev MRVCModels.fit!(model)
     # @test model.logl[1] ≈ -4435.064121104977
 end
 

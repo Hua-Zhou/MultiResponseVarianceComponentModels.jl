@@ -20,7 +20,7 @@ V[3] = Matrix(UniformScaling(1.0), n, n)
 # true parameter values
 B_true = 2 * rand(p, d) # uniform on [0, 2]
 Σ_true = [
-    Matrix(UniformScaling(0.2), d, d), 
+    Matrix(UniformScaling(0.2), d, d),
     Matrix(UniformScaling(0.2), d, d),
     Matrix(UniformScaling(0.6), d, d)
     ]
@@ -115,7 +115,7 @@ end
 #     # update the first variance component by manopt
 #     Σk_manopt = copy(MRVC.update_Σk!(mrvc, 1, d))
 #     display(Σk_manopt); println()
-#     # update the first variance component by solving Ricardi equation 
+#     # update the first variance component by solving Ricardi equation
 #     copyto!(mrvc.Σ[1], Σ_true[1])
 #     Σk_MM = copy(MRVC.update_Σk!(mrvc, 1, Val(:MM)))
 #     display(Σk_MM); println()
