@@ -6,8 +6,7 @@ function fit!(
     init    :: Symbol = :default,
     algo    :: Symbol = :MM
     ) where T <: BlasReal
-    Y, X, V = model.Y, model.X, model.V
-    n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
+    n, d, p, m = size(model.Y, 1), size(model.Y, 2), size(model.X, 2), length(model.V)
     history          = ConvergenceHistory()
     history[:reltol] = reltol
     IterativeSolvers.reserve!(Int    , history, :iter    , maxiter + 1)
@@ -18,7 +17,7 @@ function fit!(
     tic = time()
     if init == :default
         if p > 0
-            # estimate fixed effect coefficients B by ordinary least squares (Cholesky solve)
+            # estimate fixed effect coefficients B by ordinary least squares
             copyto!(model.storage_p_p, model.xtx)
             _, info = LAPACK.potrf!('U', model.storage_p_p)
             info > 0 && throw("Design matrix X is rank deficient")
@@ -76,7 +75,7 @@ function fit!(
         push!(history, :logl    , logl)
         push!(history, :itertime, toc - tic)
         if iter == maxiter
-            @warn "Maximum number of iterations $maxiter is reached"
+            @warn "Reached maximum number of iterations: $maxiter"
             break
         end
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)

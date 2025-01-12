@@ -30,8 +30,7 @@ function fit!(
     if model.ymissing
         @assert algo == :MM "only MM algorithm is possible for missing response"
     end
-    Y, X, V = model.Y, model.X, model.V
-    n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(V)
+    n, d, p, m = size(model.Y, 1), size(model.Y, 2), size(model.X, 2), length(model.V)
     history          = ConvergenceHistory()
     history[:reltol] = reltol
     IterativeSolvers.reserve!(Int    , history, :iter    , maxiter + 1)
@@ -42,7 +41,7 @@ function fit!(
     tic = time()
     if init == :default
         if p > 0
-            # estimate fixed effect coefficients B by OLS
+            # estimate fixed effect coefficients B by ordinary least squares
             copyto!(model.storage_p_p, model.xtx)
             _, info = LAPACK.potrf!('U', model.storage_p_p)
             info > 0 && throw("Design matrix X is rank deficient")
@@ -51,7 +50,7 @@ function fit!(
             update_res!(model)
         else
             # no fixed effects
-            copy!(model.R, Y)
+            copy!(model.R, model.Y)
         end
         # initialization of variance components Σ[1], ..., Σ[m]
         # if R is MatrixNormal(0, V[i], Σ[i]), i.e., vec(R) is Normal(0, Σ[i]⊗V[i]),
@@ -62,7 +61,7 @@ function fit!(
         end
         update_Ω!(model)
     else
-        if p > 0; update_res!(model); else copy!(model.R, Y); end
+        if p > 0; update_res!(model); else copy!(model.R, model.Y); end
         update_Ω!(model)
     end
     model.ymissing ? logl = loglikelihood_miss!(model) : logl = loglikelihood!(model)
@@ -82,10 +81,8 @@ function fit!(
         IterativeSolvers.nextiter!(history)
         tic = time()
         # initial estiamte of Σ[i] can be lousy, so we update Σ[i] first in the 1st round
-        if p > 0 && iter > 1 && model.ymissing
-            update_B_miss!(model)
-        elseif p > 0 && iter > 1
-            update_B!(model)
+        if p > 0 && iter > 1
+            model.ymissing ? update_B_miss!(model) : update_B!(model)
         end
         update_Σ!(model, algo = algo, ymissing = model.ymissing)
         logl_prev = logl
@@ -96,7 +93,7 @@ function fit!(
         push!(history, :logl    , logl)
         push!(history, :itertime, toc - tic)
         if iter == maxiter
-            @warn "Maximum number of iterations $maxiter is reached"
+            @warn "Reached maximum number of iterations: $maxiter"
             break
         end
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)
@@ -112,6 +109,7 @@ function fit!(
     end
     if model.reml
         n, p = size(model.Y_reml, 1), size(model.X_reml, 2)
+        nd = n * d
         # update Ω
         fill!(model.Ω_reml, zero(T))
         @inbounds for k in 1:m
@@ -122,7 +120,6 @@ function fit!(
         _, info = LAPACK.potrf!('U', model.storage_nd_nd_reml)
         info > 0 && throw("Covariance matrix Ω is singular")
         # assemble pieces for log-likelihood
-        nd = n * d
         logl = nd * log(2π)
         @inbounds for i in 1:nd
             logl += 2log(model.storage_nd_nd_reml[i, i])
@@ -159,7 +156,8 @@ function fit!(
         LAPACK.potrs!('U', G, model.storage_pd_reml)
         copyto!(model.B_reml, model.storage_pd_reml)
         # update R = Y - XB
-        BLAS.gemm!('N', 'N', -one(T), model.X_reml, model.B_reml, one(T), copyto!(model.R_reml, model.Y_reml))
+        BLAS.gemm!('N', 'N', -one(T), model.X_reml, model.B_reml, one(T),
+            copyto!(model.R_reml, model.Y_reml))
         copyto!(model.storage_nd_1_reml, model.R_reml)
         mul!(model.storage_nd_2_reml, Ω⁻¹, model.storage_nd_1_reml)
         logl += dot(model.storage_nd_1_reml, model.storage_nd_2_reml)
@@ -182,17 +180,12 @@ function update_Σ!(
     ) where T <: BlasReal
     d = size(model.Y, 2)
     Ω⁻¹ = model.storage_nd_nd
-    # update Ω⁻¹R, assuming Ω⁻¹ = model.storage_nd_nd
     copyto!(model.storage_nd_1, model.R)
     mul!(model.storage_nd_2, Ω⁻¹, model.storage_nd_1)
     copyto!(model.Ω⁻¹R, model.storage_nd_2)
     for k in 1:length(model.V)
         if model.Σ_rank[k] ≥ d
-            if ymissing
-                update_Σk_miss!(model, k, Val(algo))
-            else
-                update_Σk!(model, k, Val(algo))
-            end
+            ymissing ? update_Σk_miss!(model, k, Val(algo)) : update_Σk!(model, k, Val(algo))
         else
             update_Σk!(model, k, model.Σ_rank[k])
         end
