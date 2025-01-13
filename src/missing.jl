@@ -1,9 +1,8 @@
 """
     update_Σk_miss!(model::MRVCModel, k, Val(:MM))
 
-MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of
-covariance matrix `model.Ω` is available at `model.storage_nd_nd`,
-`model.Ω⁻¹R` is precomputed, and Ω⁻¹P'CPΩ⁻¹ is available at
+MM update the `model.Σ[k]`, assuming inverse of covariance matrix `model.Ω` is available at
+`model.storage_nd_nd`, `model.Ω⁻¹R` is precomputed, and Ω⁻¹P'CPΩ⁻¹ is available at
 `model.storage_nd_nd_miss`.
 """
 function update_Σk_miss!(
@@ -51,70 +50,12 @@ function update_Σk_miss!(
 end
 
 """
-    update_B_miss!(model::MRVCModel)
-
-Update the regression coefficients `model.B`, assuming inverse of
-covariance matrix `model.Ω` is available at `model.storage_nd_nd` and
-`model.storage_n_miss_n_obs_1` for conditional mean is precomputed.
-"""
-function update_B_miss!(
-    model :: MRVCModel{T}
-    ) where T <: BlasReal
-    Ω⁻¹ = model.storage_nd_nd
-    G   = model.storage_pd_pd
-    # Gram matrix G = (Id⊗X')Ω⁻¹(Id⊗X) = (X'Ω⁻¹ᵢⱼX)ᵢⱼ, 1 ≤ i,j ≤ d
-    n, d, p = size(model.Y, 1), size(model.Y, 2), size(model.X, 2)
-    for j in 1:d
-        Ωcidx = ((j - 1) * n + 1):(j * n)
-        Gcidx = ((j - 1) * p + 1):(j * p)
-        for i in 1:j
-            Ωridx = ((i - 1) * n + 1):(i * n)
-            Gridx = ((i - 1) * p + 1):(i * p)
-            Ω⁻¹ᵢⱼ = view(Ω⁻¹, Ωridx, Ωcidx)
-            Gᵢⱼ   = view(G  , Gridx, Gcidx)
-            mul!(model.storage_n_p, Ω⁻¹ᵢⱼ, model.X)
-            mul!(Gᵢⱼ, transpose(model.X), model.storage_n_p)
-        end
-    end
-    copytri!(G, 'U')
-    # compute imputed response
-    nd = size(Ω⁻¹, 1)
-    n_obs = nd - model.n_miss
-    mul!(model.R, model.X, model.B)
-    copyto!(model.storage_nd_1, model.R)
-    model.storage_nd_2 .= @view model.storage_nd_1[model.P] # expected mean
-    copy!(model.storage_n_obs, view(model.storage_nd_2, 1:n_obs))
-    copy!(model.storage_n_miss, view(model.storage_nd_2, (n_obs + 1):nd))
-    model.storage_n_obs .= model.Y_obs - model.storage_n_obs
-    BLAS.gemv!('N', one(T), model.storage_n_miss_n_obs_1, model.storage_n_obs, one(T), model.storage_n_miss) # conditional mean
-    copyto!(model.storage_nd_2, model.Y_obs)
-    copy!(view(model.storage_nd_2, (n_obs + 1):nd), model.storage_n_miss)
-    model.storage_nd_1 .= @view model.storage_nd_2[model.invP]
-    copyto!(model.Y, model.storage_nd_1)
-    # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
-    mul!(model.storage_nd_2, model.storage_nd_nd, model.storage_nd_1)
-    copyto!(model.storage_n_d, model.storage_nd_2)
-    mul!(model.storage_p_d, transpose(model.X), model.storage_n_d)
-    # Cholesky solve
-    _, info = LAPACK.potrf!('U', G)
-    info > 0 && throw("Gram matrix (Id⊗X')Ω⁻¹(Id⊗X) is singular")
-    copyto!(model.storage_pd, model.storage_p_d)
-    LAPACK.potrs!('U', G, model.storage_pd)
-    copyto!(model.B, model.storage_pd)
-    # update residuals R
-    update_res!(model)
-    model.B
-end
-
-"""
     loglikelihood_miss!(model::MRVCModel)
 
-Overwrite `model.storage_nd_nd` by inverse of the covariance matrix `model.Ω`,
-overwrite `model.storage_nd` by `U' \\ vec(model.R)`, overwrite
-`model.storage_n_miss_n_miss_1` by conditional variance, precompute
-`model.storage_n_miss_n_obs_1` for conditional mean, and return the value of
-surrogate Q-function of log-likelihood. Assume `model.Ω` and `model.R` are already
-updated according to `model.Σ` and `model.B`.
+Return the value of surrogate Q-function of log-likelihood, overwrite `model.storage_nd_nd`
+by inverse of covariance matrix `model.Ω`, `model.Y` by imputed response, and
+`model.storage_nd_nd_miss` by Ω⁻¹P'CPΩ⁻¹. Assume `model.Ω` and `model.R` are already updated
+according to `model.Σ` and `model.B`.
 """
 function loglikelihood_miss!(
     model :: MRVCModel{T}
@@ -169,8 +110,89 @@ function loglikelihood_miss!(
     mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd),
         transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
     copytri!(Ω⁻¹PtCPΩ⁻¹, 'L')
+    # compute imputed response
+    nd = size(Ω⁻¹, 1)
+    n_obs = nd - model.n_miss
+    mul!(model.R, model.X, model.B)
+    copyto!(model.storage_nd_1, model.R)
+    model.storage_nd_2 .= @view model.storage_nd_1[model.P] # expected mean
+    copy!(model.storage_n_obs, view(model.storage_nd_2, 1:n_obs))
+    copy!(model.storage_n_miss, view(model.storage_nd_2, (n_obs + 1):nd))
+    model.storage_n_obs .= model.Y_obs - model.storage_n_obs
+    BLAS.gemv!('N', one(T), model.storage_n_miss_n_obs_1, model.storage_n_obs, one(T),
+        model.storage_n_miss) # conditional mean
+    copyto!(model.storage_nd_2, model.Y_obs)
+    copy!(view(model.storage_nd_2, (n_obs + 1):nd), model.storage_n_miss)
+    model.storage_nd_1 .= @view model.storage_nd_2[model.invP]
+    copyto!(model.Y, model.storage_nd_1)
     logl /= -2
 end
+
+# function loglikelihood_miss!(
+#     model :: MRVCModel{T}
+#     ) where T <: BlasReal
+#     nd = size(model.Ω, 1)
+#     n_obs = nd - model.n_miss
+#     PΩPt = model.storage_nd_nd_miss
+#     PΩPt .= @view model.Ω[model.P, model.P]
+#     logdetΩ = zero(T) # for log-likelihood
+#     @inbounds for k in 1:n_obs
+#         logdetΩ += log(PΩPt[k, k])
+#         sweep!(PΩPt, k)
+#     end
+#     copytri!(PΩPt, 'U')
+#     copy!(model.storage_n_miss_n_obs_1,
+#         view(PΩPt, (n_obs + 1):nd, 1:n_obs)) # for conditional mean
+#     copy!(model.storage_n_miss_n_miss_2, model.storage_n_miss_n_miss_1)
+#     copy!(model.storage_n_miss_n_miss_1,
+#         view(PΩPt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
+#     C = model.storage_n_miss_n_miss_2
+#     @inbounds for k in (n_obs + 1):nd
+#         logdetΩ += log(PΩPt[k, k])
+#         sweep!(PΩPt, k) # PΩ⁻¹P' from sweep operator
+#     end
+#     copytri!(PΩPt, 'U')
+#     PΩPt .= -one(T) .* PΩPt
+#     logl = dot(view(PΩPt, (n_obs + 1):nd, (n_obs + 1):nd), C) # tr(PΩ⁻¹P'C) for log-likelihood
+#     model.storage_nd_nd .= @view PΩPt[model.invP, model.invP]
+#     Ω⁻¹ = model.storage_nd_nd
+#     # assemble pieces for surrogate function of log-likelihood
+#     copyto!(model.storage_nd_1, model.R)
+#     mul!(model.storage_nd_2, Ω⁻¹, model.storage_nd_1)
+#     logl += dot(model.storage_nd_1, model.storage_nd_2) + nd * log(2π) + logdetΩ
+#     # compute Ω⁻¹P'CPΩ⁻¹
+#     C = model.storage_n_miss_n_miss_1
+#     PΩ⁻¹ = model.storage_nd_nd_miss
+#     PΩ⁻¹ .= @view Ω⁻¹[model.P, :]
+#     copy!(model.storage_n_miss_n_obs_2,
+#         view(PΩ⁻¹, (n_obs + 1):nd, 1:n_obs))
+#     copy!(model.storage_n_miss_n_miss_2,
+#         view(PΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd))
+#     Ω⁻¹PtCPΩ⁻¹ = model.storage_nd_nd_miss
+#     mul!(model.storage_n_miss_n_obs_3, C, model.storage_n_miss_n_obs_2)
+#     mul!(view(Ω⁻¹PtCPΩ⁻¹, 1:n_obs, 1:n_obs),
+#         transpose(model.storage_n_miss_n_obs_2), model.storage_n_miss_n_obs_3)
+#     mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, 1:n_obs),
+#         transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_obs_3)
+#     mul!(model.storage_n_miss_n_miss_3, C, model.storage_n_miss_n_miss_2)
+#     mul!(view(Ω⁻¹PtCPΩ⁻¹, (n_obs + 1):nd, (n_obs + 1):nd),
+#         transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
+#     copytri!(Ω⁻¹PtCPΩ⁻¹, 'L')
+#     # compute imputed response
+#     mul!(model.R, model.X, model.B)
+#     copyto!(model.storage_nd_1, model.R)
+#     model.storage_nd_2 .= @view model.storage_nd_1[model.P] # expected mean
+#     copy!(model.storage_n_obs, view(model.storage_nd_2, 1:n_obs))
+#     copy!(model.storage_n_miss, view(model.storage_nd_2, (n_obs + 1):nd))
+#     model.storage_n_obs .= model.Y_obs - model.storage_n_obs
+#     BLAS.gemv!('N', one(T), model.storage_n_miss_n_obs_1, model.storage_n_obs, one(T),
+#         model.storage_n_miss) # conditional mean
+#     copyto!(model.storage_nd_2, model.Y_obs)
+#     copy!(view(model.storage_nd_2, (n_obs + 1):nd), model.storage_n_miss)
+#     model.storage_nd_1 .= @view model.storage_nd_2[model.invP]
+#     copyto!(model.Y, model.storage_nd_1)
+#     logl /= -2
+# end
 
 """
     permute(Y::AbstractVecOrMat)

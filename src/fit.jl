@@ -82,7 +82,7 @@ function fit!(
         tic = time()
         # initial estiamte of Σ[i] can be lousy, so we update Σ[i] first in the 1st round
         if p > 0 && iter > 1
-            model.ymissing ? update_B_miss!(model) : update_B!(model)
+            update_B!(model)
         end
         update_Σ!(model, algo = algo, ymissing = model.ymissing)
         logl_prev = logl
@@ -170,8 +170,9 @@ end
 """
     update_Σ!(model::MRVCModel)
 
-Update the variance component parameters `model.Σ`, assuming inverse of covariance matrix
-`model.Ω` is available at `model.storage_nd_nd`.
+Update the variance component parameters `model.Σ` and `model.Ω⁻¹R`. Assume inverse of
+covariance matrix `model.Ω` is available at `model.storage_nd_nd` and model.R` updated
+according to `model.B`.
 """
 function update_Σ!(
     model    :: MRVCModel{T};
@@ -197,8 +198,8 @@ end
 """
     update_Σk!(model::MRVCModel, k, Val(:MM))
 
-MM update the `model.Σ[k]` assuming it has full rank `d`, inverse of covariance matrix
-`model.Ω` is available at `model.storage_nd_nd`, and `model.Ω⁻¹R` is precomputed.
+MM update the `model.Σ[k]` assuming it has full rank `d`. Assume inverse of covariance
+matrix `model.Ω` is available at `model.storage_nd_nd` and `model.Ω⁻¹R` precomputed.
 """
 function update_Σk!(
     model :: MRVCModel{T},
@@ -243,8 +244,8 @@ end
 """
     update_Σk!(model::MRVCModel, k, Val(:EM))
 
-EM update the `model.Σ[k]` assuming it has full rank `d`, inverse of covariance matrix
-`model.Ω` is available at `model.storage_nd_nd`, and `model.Ω⁻¹R` is precomputed.
+EM update the `model.Σ[k]` assuming it has full rank `d`. Assume inverse of covariance
+matrix `model.Ω` is available at `model.storage_nd_nd` and `model.Ω⁻¹R` precomputed.
 """
 function update_Σk!(
     model :: MRVCModel{T},
@@ -271,11 +272,50 @@ function update_Σk!(
     model.Σ[k]
 end
 
+function update_Ω!(
+    model :: MRVCModel{T}
+    ) where T <: BlasReal
+    fill!(model.Ω, zero(T))
+    @inbounds for k in 1:length(model.V)
+        kron_axpy!(model.Σ[k], model.V[k], model.Ω)
+    end
+    model.Ω
+end
+
+"""
+    loglikelihood!(model::MRVCModel)
+
+Return the log-likelihood and overwrite `model.storage_nd_nd` by inverse of the covariance
+matrix `model.Ω`. Assume `model.Ω` and `model.R` are updated according to `model.Σ` and
+`model.B`.
+"""
+function loglikelihood!(
+    model :: MRVCModel{T}
+    ) where T <: BlasReal
+    copyto!(model.storage_nd_nd, model.Ω)
+    # Cholesky of covariance Ω = U'U
+    _, info = LAPACK.potrf!('U', model.storage_nd_nd)
+    info > 0 && throw("Covariance matrix Ω is singular")
+    # storage_nd = U' \ vec(R)
+    copyto!(model.storage_nd_1, model.R)
+    BLAS.trsv!('U', 'T', 'N', model.storage_nd_nd, model.storage_nd_1)
+    # assemble pieces for log-likelihood
+    logl = sum(abs2, model.storage_nd_1) + length(model.storage_nd_1) * log(2π)
+    @inbounds for i in 1:length(model.storage_nd_1)
+        logl += 2log(model.storage_nd_nd[i, i])
+    end
+    # Ω⁻¹ from upper Cholesky factor
+    LAPACK.potri!('U', model.storage_nd_nd)
+    copytri!(model.storage_nd_nd, 'U')
+    logl /= -2
+end
+
 """
     update_B!(model::MRVCModel)
 
-Update the regression coefficients `model.B`, assuming inverse of covariance matrix
-`model.Ω` is available at `model.storage_nd_nd`.
+Update the regression coefficients `model.B`. Assume inverse of covariance matrix `model.Ω`
+is available at `model.storage_nd_nd` and in the case of missing response, imputed response
+is available at `model.Y`.
 """
 function update_B!(
     model :: MRVCModel{T}
@@ -299,7 +339,7 @@ function update_B!(
     copytri!(G, 'U')
     # (Id⊗X')Ω⁻¹vec(Y) = vec(X' * reshape(Ω⁻¹vec(Y), n, d))
     copyto!(model.storage_nd_1, model.Y)
-    mul!(model.storage_nd_2, model.storage_nd_nd, model.storage_nd_1)
+    mul!(model.storage_nd_2, Ω⁻¹, model.storage_nd_1)
     copyto!(model.storage_n_d, model.storage_nd_2)
     mul!(model.storage_p_d, transpose(model.X), model.storage_n_d)
     # Cholesky solve
@@ -313,50 +353,12 @@ function update_B!(
     model.B
 end
 
-"""
-    loglikelihood!(model::MRVCModel)
-
-Overwrite `model.storage_nd_nd` by inverse of the covariance matrix `model.Ω` and return the
-log-likelihood. Assume `model.Ω` and `model.R` are already updated according to `model.Σ`
-and `model.B`.
-"""
-function loglikelihood!(
-    model :: MRVCModel{T}
-    ) where T <: BlasReal
-    copyto!(model.storage_nd_nd, model.Ω)
-    # Cholesky of covariance Ω = U'U
-    _, info = LAPACK.potrf!('U', model.storage_nd_nd)
-    info > 0 && throw("Covariance matrix Ω is singular")
-    # storage_nd = U' \ vec(R)
-    copyto!(model.storage_nd_1, model.R)
-    BLAS.trsv!('U', 'T', 'N', model.storage_nd_nd, model.storage_nd_1)
-    # assemble pieces for log-likelihood
-    logl = sum(abs2, model.storage_nd_1) + length(model.storage_nd_1) * log(2π)
-    @inbounds for i in 1:length(model.storage_nd_1)
-        logl += 2log(model.storage_nd_nd[i, i])
-    end
-    # Ω⁻¹ from upper Cholesky factor
-    LAPACK.potri!('U', model.storage_nd_nd)
-    copytri!(model.storage_nd_nd, 'U')
-    logl /= -2
-end
-
 function update_res!(
     model :: MRVCModel{T}
     ) where T <: BlasReal
     # update R = Y - XB
     BLAS.gemm!('N', 'N', -one(T), model.X, model.B, one(T), copyto!(model.R, model.Y))
     model.R
-end
-
-function update_Ω!(
-    model :: MRVCModel{T}
-    ) where T <: BlasReal
-    fill!(model.Ω, zero(T))
-    @inbounds for k in 1:length(model.V)
-        kron_axpy!(model.Σ[k], model.V[k], model.Ω)
-    end
-    model.Ω
 end
 
 """
