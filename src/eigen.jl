@@ -211,14 +211,16 @@ function update_res_reml!(
     model :: MRTVCModel{T}
     ) where T <: BlasReal
     # update R̃ = Ỹ - X̃B
-    BLAS.gemm!('N', 'N', -one(T), model.X̃_reml, model.B_reml, one(T), copyto!(model.R̃_reml, model.Ỹ_reml))
+    BLAS.gemm!('N', 'N', -one(T), model.X̃_reml, model.B_reml, one(T),
+        copyto!(model.R̃_reml, model.Ỹ_reml))
     model.R̃
 end
 
 """
     loglikelihood(model::MRTVCModel)
 
-Return the residual log-likelihood, assuming `model.Λ`, `model.Φ`, `model.logdetΣ2`, and `model.R̃Φ` are updated.
+Return the residual log-likelihood, assuming `model.Λ`, `model.Φ`, `model.logdetΣ2`, and
+`model.R̃Φ` are updated.
 """
 function loglikelihood(
     model :: MRTVCModel{T}
@@ -239,7 +241,8 @@ end
 """
     loglikelihood_reml(model::MRTVCModel)
 
-Return the log-likelihood, assuming `model.Λ`, `model.Φ`, `model.logdetΣ2`, and `model.R̃Φ_reml` are updated.
+Return the log-likelihood, assuming `model.Λ`, `model.Φ`, `model.logdetΣ2`, and
+`model.R̃Φ_reml` are updated.
 """
 function loglikelihood_reml(
     model :: MRTVCModel{T}
@@ -345,8 +348,8 @@ end
 """
     fisher_B_reml!(model::MRTVCModel)
 
-Compute the sampling variance-covariance `model.Bcov_reml` of regression coefficients `model.B_reml`,
-assuming `model.Λ` and `model.Φ` are updated.
+Compute the sampling variance-covariance `model.Bcov_reml` of regression coefficients
+`model.B_reml`, assuming `model.Λ` and `model.Φ` are updated.
 """
 function fisher_B_reml!(
     model :: MRTVCModel{T}
@@ -366,8 +369,8 @@ end
 """
     fisher_Σ!(model::MRTVCModel)
 
-Compute the sampling variance-covariance `model.Σcov` of variance component estimates `model.Σ`,
-assuming `model.Λ` and `model.Φ` are updated.
+Compute the sampling variance-covariance `model.Σcov` of variance component estimates
+`model.Σ`, assuming `model.Λ` and `model.Φ` are updated.
 """
 function fisher_Σ!(
     model :: MRTVCModel{T}

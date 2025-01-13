@@ -50,7 +50,7 @@ end
 @testset "fit! missing response with MM" begin
     model = MRVCModel(Y_miss, X, V; se = false)
     @timev MRVCModels.fit!(model)
-    # @test model.logl[1] ≈ -4435.064121104977
+    # @test model.logl[1] ≈ -4434.987288578773
 end
 
 end
