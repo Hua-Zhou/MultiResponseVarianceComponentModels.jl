@@ -65,3 +65,8 @@ fit!(model)
 - J. Kim, J. Shen, A. Wang, D.V. Mehrotra, S. Ko, J.J. Zhou, and H. Zhou: **VCSEL: Prioritizing SNP-set by penalized variance component selection** (2021) ([link](http://doi.org/10.1214/21-aoas1491))
 - L. Hu, W. Lu, J. Zhou, and H. Zhou: **MM algorithms for variance component estimation and selection in logistic linear mixed models** (2019) ([link](http://doi.org/10.5705/ss.202017.0220))
 - J.J. Zhou, T. Hu, D. Qiao, M.H. Cho, and H. Zhou: **Boosting gene mapping power and efficiency with efficient exact variance component tests of single nucleotide polymorphism sets** (2016) ([link](http://doi.org/10.1534/genetics.116.190454))
+
+## Contributors
+<a href="https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=Hua-Zhou/MultiResponseVarianceComponentModels.jl" />
+</a>

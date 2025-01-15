@@ -1,29 +1,29 @@
 """
     lrt(model1::VCModel, model0::VCModel)
 
-Perform a variation of the likelihood ratio test for univariate variance components models as in
-Molenberghs and Verbeke 2007 with model1 and model0 being the full and nested models, respectively.
+Perform a variation of the likelihood ratio test for univariate variance components models
+as in Molenberghs and Verbeke 2007 with `model1` and `model0` being the full and nested
+models, respectively.
 """
 function lrt(
     model1 :: VCModel,
     model0 :: VCModel
     )
     df = length(model1.V) - length(model0.V)
-    @assert df > 0
-    @assert size(model0.Σ[1], 1) == 1
-    @assert size(model1.Σ[1], 1) == 1
+    @assert df > 0 "models should be nested"
+    @assert size(model1.Σ[1], 1) == 1 && size(model0.Σ[1], 1) == 1 "models should be univariate"
     lrt = 2 * (model1.logl[1] - model0.logl[1])
     coefs = [2.0^-df * binomial(df, i) for i in 1:df]
     ps = [ccdf(Chisq(i), lrt) for i in 1:df]
-    sum(coefs .* ps)
+    dot(coefs, ps)
 end
 
 """
     h2(model::VCModel)
 
-Calculate heritability estimates and their standard errors, assuming that all variance components
-capture genetic effects except the last term. Also return total heritability from sum of individual
-contributions and its standard error.
+Calculate heritability estimates and their standard errors, assuming that all variance
+components capture genetic effects except the last term. Also return total heritability from
+sum of individual contributions and its standard error.
 """
 function h2(model::VCModel)
     m, d = length(model.Σ), size(model.Σ[1], 1)
@@ -50,16 +50,6 @@ function h2(model::VCModel)
         end
     end
     h2s, ses
-end
-
-function findvar(d::Int)
-    s, r = ◺(d), d
-    idx = ones(Int, d)
-    for j in 2:length(idx)
-        idx[j] = idx[j - 1] + r
-        r -= 1
-    end
-    idx
 end
 
 """
@@ -93,4 +83,14 @@ function rg(model::VCModel)
     end
     [copytri!(ses[i], 'L') for i in 1:m]
     rgs, ses
+end
+
+function findvar(d::Int)
+    s, r = ◺(d), d
+    idx = ones(Int, d)
+    for j in 2:length(idx)
+        idx[j] = idx[j - 1] + r
+        r -= 1
+    end
+    idx
 end
