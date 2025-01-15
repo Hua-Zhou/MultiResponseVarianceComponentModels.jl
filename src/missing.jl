@@ -201,9 +201,9 @@ Return permutation `P` such that `vec(Y)[P]` rearranges `vec(Y)` with missing va
 spliced after non-missing values. Also return inverse permutation `invP` such that
 `vec(Y)[P][invP] = vec(Y)`.
 """
-function permute(Y::AbstractMatrix{Union{Missing, T}}) where T <: BlasReal
+function permute(Y::AbstractMatrix)
     idxall = findall(ismissing, Y)
-    Y_imputed = similar(Matrix{T}, size(Y))
+    Y_imputed = similar(Array{nonmissingtype(eltype(Y))}, size(Y))
     Y_imputed[Not(idxall)] = Y[Not(idxall)]
     for (i, col) in enumerate(eachcol(Y))
         Y_imputed[findall(ismissing, col), i] .= mean(skipmissing(col))

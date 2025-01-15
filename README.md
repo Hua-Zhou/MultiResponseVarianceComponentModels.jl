@@ -1,12 +1,14 @@
 <p align="center"><img width="100%" style="border-radius: 5px;" src="docs/src/assets/logo.svg"></p>
 
 # MultiResponseVarianceComponentModels
-[![Latest](https://img.shields.io/badge/docs-latest-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/stable)
+[![Latest](https://img.shields.io/badge/docs-latest-blueviolet.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
+[![Stable](https://img.shields.io/badge/docs-stable-mediumorchid.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/stable)
 [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
-[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/blob/master/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/blob/master/LICENSE)
 [![CI](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/workflows/CI/badge.svg)](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/actions)
 [![Codecov](https://codecov.io/gh/Hua-Zhou/MultiResponseVarianceComponentModels.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Hua-Zhou/MultiResponseVarianceComponentModels.jl)
+![Repo Size](https://img.shields.io/github/repo-size/hua-zhou/MultiResponseVarianceComponentModels.jl)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 MultiResponseVarianceComponentModels.jl is a <a href="https://julialang.org"><img src="https://julialang.org/assets/infra/julia.ico" width="10em"> Julia </a>package that allows fitting and testing multivariate response variance components linear mixed models of form 
 
@@ -18,7 +20,7 @@ julia> ]
 pkg> add https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl.git
 ```
 ## Documentation
-[![Latest](https://img.shields.io/badge/docs-latest-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
+[![Latest](https://img.shields.io/badge/docs-latest-blueviolet.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
 
 ## Examples
 ```julia
