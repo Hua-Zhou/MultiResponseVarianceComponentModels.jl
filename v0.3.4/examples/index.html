@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · MRVCModels</title><meta name="title" content="Examples · MRVCModels"/><meta property="og:title" content="Examples · MRVCModels"/><meta property="twitter:title" content="Examples · MRVCModels"/><meta name="description" content="Documentation for MRVCModels."/><meta property="og:description" content="Documentation for MRVCModels."/><meta property="twitter:description" content="Documentation for MRVCModels."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../"><img src="../assets/logo.svg" alt="MRVCModels logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../">MRVCModels</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#Simulate-data"><span>Simulate data</span></a></li><li class="toplevel"><a class="tocitem" href="#Maximum-likelihood-estimation"><span>Maximum likelihood estimation</span></a></li><li class="toplevel"><a class="tocitem" href="#Standard-errors"><span>Standard errors</span></a></li><li class="toplevel"><a class="tocitem" href="#Residual-maximum-likelihood-estimation"><span>Residual maximum likelihood estimation</span></a></li><li class="toplevel"><a class="tocitem" href="#Estimation-only"><span>Estimation only</span></a></li><li class="toplevel"><a class="tocitem" href="#Special-case:-missing-response"><span>Special case: missing response</span></a></li><li class="toplevel"><a class="tocitem" href="#Special-case:-m-2"><span>Special case: <span>$m = 2$</span></span></a></li></ul></li><li><a class="tocitem" href="../advanced/">Advanced details</a></li><li><a class="tocitem" href="../api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/blob/master/docs/src/examples.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples"><a class="docs-heading-anchor" href="#Examples">Examples</a><a id="Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Examples" title="Permalink"></a></h1><h1 id="Simulate-data"><a class="docs-heading-anchor" href="#Simulate-data">Simulate data</a><a id="Simulate-data-1"></a><a class="docs-heading-anchor-permalink" href="#Simulate-data" title="Permalink"></a></h1><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; using MultiResponseVarianceComponentModels, LinearAlgebra, Random</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; Random.seed!(6789)</code><code class="nohighlight hljs ansi" style="display:block;">Random.TaskLocalRNG()</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; n = 1_000;  # n of observations</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; d = 4;      # n of responses</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; p = 10;     # n of covariates</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; m = 5;      # n of variance components</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; X = rand(n, p);</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; B = rand(p, d)</code><code class="nohighlight hljs ansi" style="display:block;">10×4 Matrix{Float64}:
+ 0.866192  0.739958   0.951693   0.716391
+ 0.157873  0.633772   0.916356   0.068644
+ 0.818581  0.333021   0.0713489  0.451072
+ 0.707496  0.924568   0.0636189  0.618679
+ 0.357756  0.173016   0.982384   0.54638
+ 0.722163  0.0683381  0.343516   0.616161
+ 0.441486  0.64316    0.862809   0.400984
+ 0.812486  0.275565   0.477624   0.482087
+ 0.889787  0.669932   0.103051   0.582507
+ 0.331484  0.989292   0.785077   0.456195</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; V = [zeros(n, n) for _ in 1:m]; # kernel matrices</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; Σ = [zeros(d, d) for _ in 1:m]; # variance components</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; for i in 1:m
+           Vi = randn(n, n)
+           copy!(V[i], Vi&#39; * Vi)
+           Σi = randn(d, d)
+           copy!(Σ[i], Σi&#39; * Σi)
+       end</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; Ω = zeros(n * d, n * d); # overall nd-by-nd covariance matrix Ω</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; for i = 1:m
+           Ω += kron(Σ[i], V[i])
+       end</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; Ωchol = cholesky(Ω);</code><code class="nohighlight hljs ansi" style="display:block;"></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)</code><code class="nohighlight hljs ansi" style="display:block;">1000×4 Matrix{Float64}:
+   23.5855     14.8876    86.7877  -141.046
+  312.962     -90.177   -283.251    148.17
+  -10.6223     27.1832    47.2948    28.5205
+ -118.483     -47.9768   302.02    -180.574
+   66.4735   -153.679   -165.898    343.03
+   25.4337     98.4713   -50.4539   126.245
+  -71.9819     55.3291    14.9882    14.9862
+  -94.5587   -142.943    -90.3563   -22.055
+   -3.51135    99.3073   107.673   -343.567
+  -89.2753    -48.2758    79.1109   -18.9038
+    ⋮
+  180.072      59.9034  -134.111    165.686
+ -144.789     184.883    121.175     62.6053
+ -164.517     151.15     251.434   -180.174
+  101.476      35.2406    54.0123  -178.832
+  -89.9731    149.411    -29.6747    30.5383
+  -47.2355    142.678     18.7363  -164.102
+ -106.282      34.9309   147.441    -59.6325
+   -4.49194    20.8316    29.2559   -74.2829
+ -191.131    -200.787     75.0058   239.405</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>In the case of heritability and genetic correlation analyses, one can use classic genetic relationship matrices (GRMs) for <span>$\boldsymbol{V}_i$</span>&#39;s, which in turn can be constructed using <a href="https://github.com/OpenMendel/SnpArrays.jl"><strong>SnpArrays.jl</strong></a>.</p></div></div><h1 id="Maximum-likelihood-estimation"><a class="docs-heading-anchor" href="#Maximum-likelihood-estimation">Maximum likelihood estimation</a><a id="Maximum-likelihood-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#Maximum-likelihood-estimation" title="Permalink"></a></h1><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; model = MRVCModel(Y, X, V)</code><code class="nohighlight hljs ansi" style="display:block;"><span class="sgr4">A multivariate response variance component model</span>
+   * number of responses: <span class="sgr33">4</span>
+   * number of observations: <span class="sgr33">1000</span>
+   * number of fixed effects: <span class="sgr33">10</span>
+   * number of variance components: <span class="sgr33">5</span></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; @timev fit!(model)</code><code class="nohighlight hljs ansi" style="display:block;">[ Info: Running MM algorithm for ML estimation
+iter = 0, logl = -26401.255549171983
+iter = 1, logl = -25264.271267483302
+iter = 2, logl = -24864.944806512278
+iter = 3, logl = -24729.210471767958
+iter = 4, logl = -24675.873927925597
+iter = 5, logl = -24648.79283090188
+iter = 6, logl = -24631.407909576872
+iter = 7, logl = -24618.690653298163
+iter = 8, logl = -24608.86936409401
+iter = 9, logl = -24601.127243355135
+iter = 10, logl = -24594.96953697336
+iter = 11, logl = -24590.04342858518
+iter = 12, logl = -24586.080266831043
+iter = 13, logl = -24582.87155830492
+iter = 14, logl = -24580.25508795992
+iter = 15, logl = -24578.10487752698
+iter = 16, logl = -24576.32327456952
+iter = 17, logl = -24574.834626889377
+iter = 18, logl = -24573.580265490644
+iter = 19, logl = -24572.514575452602
+iter = 20, logl = -24571.601953639587
+iter = 21, logl = -24570.814473353832
+iter = 22, logl = -24570.130102056162
+iter = 23, logl = -24569.53134565746
+iter = 24, logl = -24569.004218493305
+iter = 25, logl = -24568.537460279782
+iter = 26, logl = -24568.12193961866
+iter = 27, logl = -24567.75019815654
+iter = 28, logl = -24567.416100789065
+iter = 29, logl = -24567.114565937765
+iter = 30, logl = -24566.841356441524
+iter = 31, logl = -24566.59291649787
+iter = 32, logl = -24566.366243739354
+iter = 33, logl = -24566.15878824508
+iter = 34, logl = -24565.968372313673
+iter = 35, logl = -24565.79312632792
+iter = 36, logl = -24565.63143716206
+iter = 37, logl = -24565.481906427183
+iter = 38, logl = -24565.343316477585
+iter = 39, logl = -24565.214602575
+iter = 40, logl = -24565.094829970963
+iter = 41, logl = -24564.983174934765
+iter = 42, logl = -24564.878908970197
+iter = 43, logl = -24564.781385618364
+iter = 44, logl = -24564.690029373425
+iter = 45, logl = -24564.604326329143
+iter = 46, logl = -24564.523816253164
+iter = 47, logl = -24564.448085844193
+iter = 48, logl = -24564.376762971606
+iter = 49, logl = -24564.309511737236
+iter = 50, logl = -24564.246028225534
+iter = 51, logl = -24564.186036834668
+iter = 52, logl = -24564.12928709781
+iter = 53, logl = -24564.075550921232
+iter = 54, logl = -24564.02462017559
+iter = 55, logl = -24563.976304591826
+iter = 56, logl = -24563.9304299144
+iter = 57, logl = -24563.88683627978
+iter = 58, logl = -24563.84537678533
+iter = 59, logl = -24563.805916225807
+iter = 60, logl = -24563.76832997448
+iter = 61, logl = -24563.732502987517
+iter = 62, logl = -24563.69832892109
+iter = 63, logl = -24563.66570934134
+iter = 64, logl = -24563.63455301976
+iter = 65, logl = -24563.604775301355
+iter = 66, logl = -24563.576297537926
+iter = 67, logl = -24563.54904657888
+iter = 68, logl = -24563.522954312146
+iter = 69, logl = -24563.497957250103
+iter = 70, logl = -24563.47399615531
+[ Info: Calculating standard errors
+ 73.902962 seconds (36.42 M allocations: 1.778 GiB, 0.53% gc time, 9.07% compilation time)
+elapsed time (ns):  7.3902961791e10
+gc time (ns):       393986209
+bytes allocated:    1909308048
+pool allocs:        36373934
+non-pool GC allocs: 749
+malloc() calls:     44497
+free() calls:       38873
+minor collections:  4
+full collections:   0
+Converged after 71 iterations.</code></pre><p>Then variance components and mean effects estimates can be accessed through</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; model.Σ</code><code class="nohighlight hljs ansi" style="display:block;">5-element Vector{Matrix{Float64}}:
+ [0.8301874090520144 0.0206238072503985 0.559515886262212 0.18345437256779956; 0.020623807250398488 0.6281115440687403 0.0034743761101718182 0.7903906375834067; 0.5595158862622123 0.0034743761101717206 4.185303393410458 0.07320724171297506; 0.18345437256779956 0.7903906375834067 0.07320724171297514 1.155765042788471]
+ [2.7663865542730184 -0.793496378232284 -1.3597240969949815 -0.7065930587661292; -0.7934963782322839 8.542056395556495 2.1118104125202524 -3.8457072468135345; -1.3597240969949815 2.111810412520253 2.335748720895851 -1.4344286827750108; -0.7065930587661293 -3.845707246813535 -1.4344286827750108 3.0433326434503436]
+ [4.4040731506838275 0.6255386434663364 -1.3809981718582427 -1.1490044840589257; 0.6255386434663363 0.3445142167000707 -0.028869007184444625 0.244222812399567; -1.380998171858243 -0.028869007184444608 2.4923240841380716 -3.5290889909878707; -1.1490044840589257 0.24422281239956714 -3.5290889909878707 13.573610001957105]
+ [3.9720561160519994 -1.297329109593217 -3.3832373284684127 0.835833033492788; -1.2973291095932167 8.60095864459567 2.4322723048252533 -4.411848894910176; -3.3832373284684127 2.432272304825253 3.4647012944589077 -2.258458490875169; 0.8358330334927881 -4.411848894910175 -2.258458490875169 5.1697869613533]
+ [3.0645533742410693 0.9870796941249467 -0.43779673505756833 -1.616216270311968; 0.9870796941249466 2.203209717922886 0.9941822607989775 -2.495081018764357; -0.4377967350575682 0.9941822607989775 2.5375752377669487 -3.041444427682066; -1.6162162703119682 -2.495081018764357 -3.041444427682066 6.049239354549418]</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; model.B</code><code class="nohighlight hljs ansi" style="display:block;">10×4 Matrix{Float64}:
+ -12.3854    -4.37424   -0.607733   21.4899
+  20.2061    18.6492    -0.306827   -6.01489
+ -17.1642    -7.71201   -1.6131     12.785
+  17.4067    -6.29446  -12.3771      9.18621
+  -8.46783   17.6583    28.9508    -22.725
+  -5.09099   -3.93689   -8.79793     8.8935
+  -6.74879    1.55528   -0.857513    4.0076
+   9.54798    3.11285    4.15299   -17.9356
+   1.55504  -20.4882    -3.11546    13.1505
+   1.06065    9.8572     0.584887   -8.13502</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; hcat(vec(B), vec(model.B))</code><code class="nohighlight hljs ansi" style="display:block;">40×2 Matrix{Float64}:
+ 0.866192  -12.3854
+ 0.157873   20.2061
+ 0.818581  -17.1642
+ 0.707496   17.4067
+ 0.357756   -8.46783
+ 0.722163   -5.09099
+ 0.441486   -6.74879
+ 0.812486    9.54798
+ 0.889787    1.55504
+ 0.331484    1.06065
+ ⋮
+ 0.068644   -6.01489
+ 0.451072   12.785
+ 0.618679    9.18621
+ 0.54638   -22.725
+ 0.616161    8.8935
+ 0.400984    4.0076
+ 0.482087  -17.9356
+ 0.582507   13.1505
+ 0.456195   -8.13502</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m])</code><code class="nohighlight hljs ansi" style="display:block;">10×10 Matrix{Float64}:
+  0.553573  0.830187     3.37727    …   3.97206    3.93202    3.06455
+ -0.255752  0.0206238   -1.40002       -1.29733    0.871678   0.98708
+  0.676379  0.559516    -1.94161       -3.38324   -0.992468  -0.437797
+  0.303744  0.183454    -0.0441414      0.835833  -1.42146   -1.61622
+  1.29092   0.628112     9.05081        8.60096    1.45405    2.20321
+ -0.169999  0.00347438   1.58876    …   2.43227    1.32713    0.994182
+  0.763703  0.790391    -3.54202       -4.41185   -1.96762   -2.49508
+  4.4274    4.1853       2.02385        3.4647     3.69481    2.53758
+  0.728338  0.0732072   -1.00511       -2.25846   -4.2984    -3.04144
+  0.888859  1.15577      3.15673        5.16979    8.10631    6.04924</code></pre><h1 id="Standard-errors"><a class="docs-heading-anchor" href="#Standard-errors">Standard errors</a><a id="Standard-errors-1"></a><a class="docs-heading-anchor-permalink" href="#Standard-errors" title="Permalink"></a></h1><p>Sampling variance and covariance of these estimates are</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; model.Σcov</code><code class="nohighlight hljs ansi" style="display:block;">50×50 Matrix{Float64}:
+  0.220785      0.00117157   -0.0719553    …  -0.00483628  -0.00210208
+  0.00117157    0.123027      0.0289334       -0.00538942  -0.00612618
+ -0.0719553     0.0289334     0.152481        -0.0027803   -0.00691093
+ -0.0328192    -0.0448039    -0.054891         0.0182063    0.0188288
+ -6.46274e-6    0.00136362    0.000321408      0.00958178  -0.0177907
+ -0.000395003  -0.0398328    -0.00867927   …   0.0204897   -0.020126
+ -0.000165188  -0.0185293    -0.00463057      -0.0248281    0.054861
+  0.0229811    -0.0188562    -0.0936345        0.0340238   -0.0227368
+  0.0105295     0.00993304   -0.00183246      -0.057689     0.0619521
+  0.00480525    0.0130778     0.0177721        0.0618878   -0.16872
+  ⋮                                        ⋱
+ -0.000179388  -0.0354928    -0.00888347       0.0226907    0.0558139
+  0.0262104    -0.0088894    -0.0335798        0.00129501   0.0645689
+  0.0113908     0.0166167     0.0163241       -0.0713206   -0.15953
+  2.05047e-6   -0.000221306  -5.52616e-5      -0.0614234    0.125179
+  7.73756e-5    0.0150251     0.00369518   …  -0.127124     0.145037
+  3.08798e-5    0.00660448    0.00170211       0.160103    -0.357292
+ -0.0111181     0.00757547    0.0237847       -0.212117     0.167967
+ -0.00483628   -0.00538942   -0.0027803        0.344722    -0.413919
+ -0.00210208   -0.00612618   -0.00691093      -0.413919     1.01864</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; model.Bcov</code><code class="nohighlight hljs ansi" style="display:block;">40×40 Matrix{Float64}:
+ 122.296    -17.5969   -13.6138    …    2.08391     3.27384     2.12948
+ -17.5969   130.891    -13.4806         4.10461     2.86132     3.34676
+ -13.6138   -13.4806   120.172          2.04523     3.49774     0.775565
+  -8.6825    -9.47335  -16.3282         2.74044     3.18747     2.91813
+  -5.22713  -13.9595    -9.6149         0.282825    4.17061     3.16511
+ -19.0208   -11.9401   -11.8855    …    2.60756     1.51335     1.19568
+ -10.6151   -14.3528   -12.4733         3.09472     1.55926     4.53176
+ -14.2377   -15.9026   -13.2429       -22.8254      1.66544     2.98859
+ -16.9283   -15.1607   -18.9951         2.03671   -23.8235      0.981047
+ -10.3928   -15.329     -6.54662        2.75621     0.768332  -22.642
+   ⋮                               ⋱
+   2.55289  -24.2467     2.04716      -23.6782    -23.564     -27.5509
+   1.86755    2.14863  -22.2452       -22.8026    -30.5192     -9.42273
+   2.60081    0.51258    4.09313      -25.6072    -28.7348    -24.8275
+   1.31544    2.60483    1.8017       -10.2396    -32.9316    -27.8249
+   4.35297    2.67732    2.24957   …  -24.6808    -14.136     -14.5486
+   2.33971    2.59295    3.16553      -27.6569     -9.92      -34.9313
+   2.08391    4.10461    2.04523      205.324     -14.258     -27.5346
+   3.27384    2.86132    3.49774      -14.258     200.051      -8.95326
+   2.12948    3.34676    0.775565     -27.5346     -8.95326   200.732</code></pre><p>Corresponding standard error of these estimates are</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; sqrt.(diag(model.Σcov))</code><code class="nohighlight hljs ansi" style="display:block;">50-element Vector{Float64}:
+ 0.4698778984148568
+ 0.35075240107041666
+ 0.39048869521910523
+ 0.42703517237225924
+ 0.5233331074810327
+ 0.4062693570234457
+ 0.4671737651995591
+ 0.5945885845862356
+ 0.5126101877792494
+ 0.7658852393836492
+ ⋮
+ 0.4206769272506137
+ 0.4136589366772274
+ 0.5531638112574796
+ 0.6041644701921275
+ 0.41373408242723003
+ 0.606703475434058
+ 0.5164633096319224
+ 0.5871302638183571
+ 1.0092782297293608</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; sqrt.(diag(model.Bcov))</code><code class="nohighlight hljs ansi" style="display:block;">40-element Vector{Float64}:
+ 11.058749565833931
+ 11.44078190119675
+ 10.962294183286732
+ 10.893373590745702
+ 11.307978979907888
+ 10.617107857505609
+ 11.27055450451399
+ 11.161173217036367
+ 11.066948886070955
+ 11.0674655508462
+  ⋮
+ 14.688572341291408
+ 14.248307166989683
+ 14.103774296166746
+ 14.49872509461445
+ 13.62986844228754
+ 14.58376720228832
+ 14.329124892181714
+ 14.143954655148557
+ 14.1679820704775</code></pre><h1 id="Residual-maximum-likelihood-estimation"><a class="docs-heading-anchor" href="#Residual-maximum-likelihood-estimation">Residual maximum likelihood estimation</a><a id="Residual-maximum-likelihood-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#Residual-maximum-likelihood-estimation" title="Permalink"></a></h1><p>For REML estimation, you can instead:</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; model = MRVCModel(Y, X, V; reml = true)</code><code class="nohighlight hljs ansi" style="display:block;"><span class="sgr4">A multivariate response variance component model</span>
+   * number of responses: <span class="sgr33">4</span>
+   * number of observations: <span class="sgr33">1000</span>
+   * number of fixed effects: <span class="sgr33">10</span>
+   * number of variance components: <span class="sgr33">5</span></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; @timev fit!(model)</code><code class="nohighlight hljs ansi" style="display:block;">[ Info: Running MM algorithm for REML estimation
+iter = 0, logl = -26158.308994723386
+iter = 1, logl = -25029.774652127515
+iter = 2, logl = -24638.03290728136
+iter = 3, logl = -24504.12166963874
+iter = 4, logl = -24451.587066756103
+iter = 5, logl = -24424.993025574113
+iter = 6, logl = -24407.979599391107
+iter = 7, logl = -24395.572559688117
+iter = 8, logl = -24386.01624988528
+iter = 9, logl = -24378.50062546224
+iter = 10, logl = -24372.53571094972
+iter = 11, logl = -24367.773081378153
+iter = 12, logl = -24363.948262338017
+iter = 13, logl = -24360.856618840033
+iter = 14, logl = -24358.33937687356
+iter = 15, logl = -24356.27353923153
+iter = 16, logl = -24354.56398037859
+iter = 17, logl = -24353.137156821856
+iter = 18, logl = -24351.93614054673
+iter = 19, logl = -24350.916744250633
+iter = 20, logl = -24350.044531073574
+iter = 21, logl = -24349.292525822202
+iter = 22, logl = -24348.639472680996
+iter = 23, logl = -24348.068512907634
+iter = 24, logl = -24347.566182197643
+iter = 25, logl = -24347.1216498204
+iter = 26, logl = -24346.726139940172
+iter = 27, logl = -24346.372490015703
+iter = 28, logl = -24346.054812358674
+iter = 29, logl = -24345.7682334576
+iter = 30, logl = -24345.50869208682
+iter = 31, logl = -24345.272782015218
+iter = 32, logl = -24345.05762870585
+iter = 33, logl = -24344.86079204732
+iter = 34, logl = -24344.680189132585
+iter = 35, logl = -24344.514032560717
+iter = 36, logl = -24344.36078083488
+iter = 37, logl = -24344.219098237052
+iter = 38, logl = -24344.08782217591
+iter = 39, logl = -24343.965936463737
+iter = 40, logl = -24343.852549321433
+iter = 41, logl = -24343.746875180328
+iter = 42, logl = -24343.648219546907
+iter = 43, logl = -24343.555966353648
+iter = 44, logl = -24343.46956733798
+iter = 45, logl = -24343.388533083325
+iter = 46, logl = -24343.31242543119
+iter = 47, logl = -24343.24085102673
+iter = 48, logl = -24343.17345580693
+iter = 49, logl = -24343.109920277733
+iter = 50, logl = -24343.049955449966
+iter = 51, logl = -24342.993299332793
+iter = 52, logl = -24342.93971389499
+iter = 53, logl = -24342.888982427252
+iter = 54, logl = -24342.8409072416
+iter = 55, logl = -24342.7953076618
+iter = 56, logl = -24342.752018261297
+iter = 57, logl = -24342.71088731394
+iter = 58, logl = -24342.67177543083
+iter = 59, logl = -24342.634554353626
+iter = 60, logl = -24342.599105886915
+iter = 61, logl = -24342.565320950987
+iter = 62, logl = -24342.53309873782
+iter = 63, logl = -24342.50234595932
+iter = 64, logl = -24342.472976175646
+iter = 65, logl = -24342.444909192858
+iter = 66, logl = -24342.418070523676
+iter = 67, logl = -24342.392390902234
+iter = 68, logl = -24342.367805846454
+iter = 69, logl = -24342.34425526469
+[ Info: Calculating standard errors
+ 72.482195 seconds (8.49 k allocations: 10.167 MiB, 0.05% compilation time)
+elapsed time (ns):  7.248219475e10
+gc time (ns):       0
+bytes allocated:    10660792
+pool allocs:        8314
+non-pool GC allocs: 143
+malloc() calls:     31
+free() calls:       0
+minor collections:  0
+full collections:   0
+Converged after 70 iterations.</code></pre><p>Variance components and mean effects estimates and their standard errors can be accessed through:</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; model.Σ</code><code class="nohighlight hljs ansi" style="display:block;">5-element Vector{Matrix{Float64}}:
+ [0.8536216342827746 0.017665115881974537 0.5459108788742356 0.18457546329007482; 0.017665115881974506 0.6414984258531693 0.001735053662105615 0.7994093061753996; 0.5459108788742356 0.0017350536621056811 4.200623200480925 0.0635732738732595; 0.18457546329007485 0.7994093061753995 0.06357327387325952 1.1777864534082358]
+ [2.7997188326219877 -0.7930911938107108 -1.3703167959446165 -0.7200126005147133; -0.7930911938107107 8.591238784344176 2.1247964295480077 -3.8717013970462704; -1.370316795944616 2.1247964295480077 2.36472644766242 -1.451838430073166; -0.7200126005147133 -3.8717013970462704 -1.4518384300731662 3.0923092018471166]
+ [4.42890306468979 0.6285178392506365 -1.384772239881961 -1.1604597622566766; 0.6285178392506365 0.3639170433478248 -0.02151676142177359 0.23326880636875777; -1.3847722398819613 -0.021516761421773646 2.515507579461719 -3.549129310441532; -1.1604597622566764 0.2332688063687579 -3.549129310441532 13.629771280010202]
+ [3.9957627491989425 -1.2982004377762615 -3.3976634343340133 0.8319498580279097; -1.2982004377762617 8.641382542654188 2.4446302036695555 -4.438926001018384; -3.3976634343340133 2.4446302036695555 3.490263355400729 -2.2748855631670124; 0.8319498580279096 -4.438926001018384 -2.2748855631670124 5.222115998128455]
+ [3.100756754079605 0.9881805100946781 -0.4543321193631564 -1.6175984790010627; 0.9881805100946782 2.256039857020946 1.008509860468243 -2.5296706144870935; -0.45433211936315643 1.0085098604682428 2.57202305287018 -3.0702978260678213; -1.617598479001063 -2.529670614487094 -3.0702978260678218 6.1207753712777615]</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; model.B_reml</code><code class="nohighlight hljs ansi" style="display:block;">10×4 Matrix{Float64}:
+ -12.3276    -4.37991   -0.564403   21.5069
+  20.2062    18.6984    -0.260768   -6.06019
+ -17.1777    -7.71717   -1.72232    12.8157
+  17.4353    -6.26951  -12.3509      9.10669
+  -8.46268   17.687     28.9819    -22.7233
+  -5.06362   -4.00546   -8.81589     8.85976
+  -6.7594     1.54781   -0.864682    3.96034
+   9.55749    3.0842     4.126     -17.8322
+   1.51686  -20.4488    -3.10126    13.1529
+   1.00165    9.80382    0.610889   -8.06256</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; hcat(vec(B), vec(model.B_reml))</code><code class="nohighlight hljs ansi" style="display:block;">40×2 Matrix{Float64}:
+ 0.866192  -12.3276
+ 0.157873   20.2062
+ 0.818581  -17.1777
+ 0.707496   17.4353
+ 0.357756   -8.46268
+ 0.722163   -5.06362
+ 0.441486   -6.7594
+ 0.812486    9.55749
+ 0.889787    1.51686
+ 0.331484    1.00165
+ ⋮
+ 0.068644   -6.06019
+ 0.451072   12.8157
+ 0.618679    9.10669
+ 0.54638   -22.7233
+ 0.616161    8.85976
+ 0.400984    3.96034
+ 0.482087  -17.8322
+ 0.582507   13.1529
+ 0.456195   -8.06256</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:m])</code><code class="nohighlight hljs ansi" style="display:block;">10×10 Matrix{Float64}:
+  0.553573  0.853622     3.37727    …   3.99576   3.93202    3.10076
+ -0.255752  0.0176651   -1.40002       -1.2982    0.871678   0.988181
+  0.676379  0.545911    -1.94161       -3.39766  -0.992468  -0.454332
+  0.303744  0.184575    -0.0441414      0.83195  -1.42146   -1.6176
+  1.29092   0.641498     9.05081        8.64138   1.45405    2.25604
+ -0.169999  0.00173505   1.58876    …   2.44463   1.32713    1.00851
+  0.763703  0.799409    -3.54202       -4.43893  -1.96762   -2.52967
+  4.4274    4.20062      2.02385        3.49026   3.69481    2.57202
+  0.728338  0.0635733   -1.00511       -2.27489  -4.2984    -3.0703
+  0.888859  1.17779      3.15673        5.22212   8.10631    6.12078</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; model.Σcov</code><code class="nohighlight hljs ansi" style="display:block;">50×50 Matrix{Float64}:
+  0.232113      0.000984662  -0.0762099    …  -0.00504203  -0.00218524
+  0.000984662   0.129656      0.0305728       -0.00565107  -0.0064189
+ -0.0762099     0.0305728     0.159531        -0.00292199  -0.0072265
+ -0.0344605    -0.0474062    -0.0579131        0.0191003    0.0197091
+ -8.8471e-6     0.00115628    0.000271956      0.0101119   -0.0187492
+ -0.000336203  -0.0423298    -0.00939866   …   0.0215742   -0.0211846
+ -0.000136039  -0.0194505    -0.00481125      -0.0261745    0.0578061
+  0.0245557    -0.0200517    -0.0984141        0.0357644   -0.0239029
+  0.0111492     0.010666     -0.00149666      -0.0606934    0.0651933
+  0.00504005    0.013831      0.0187344        0.0651569   -0.177728
+  ⋮                                        ⋱
+ -0.000146289  -0.0372682    -0.00934974       0.0239733    0.0578179
+  0.027402     -0.00935969   -0.0351976        0.00178881   0.0667002
+  0.0118885     0.0174515     0.017141        -0.0753372   -0.165182
+  3.07929e-6   -0.000186442  -4.66654e-5      -0.064506     0.131217
+  6.51521e-5    0.0157567     0.00389896   …  -0.133204     0.151586
+  2.34e-5       0.00690538    0.00177242       0.167718    -0.374306
+ -0.0116044     0.00795494    0.024913        -0.22168      0.17505
+ -0.00504203   -0.00565107   -0.00292199       0.360682    -0.432395
+ -0.00218524   -0.0064189    -0.0072265       -0.432395     1.06669</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; model.Bcov_reml</code><code class="nohighlight hljs ansi" style="display:block;">40×40 Matrix{Float64}:
+ 123.633    -17.783     -13.7687    …    2.10997     3.2973      2.15045
+ -17.783    132.313     -13.6339         4.13256     2.88408     3.37857
+ -13.7687   -13.6339    121.499          2.06392     3.5336      0.785492
+  -8.78902   -9.56567   -16.5016         2.76447     3.21129     2.94519
+  -5.29159  -14.1174     -9.7184         0.295089    4.20682     3.19474
+ -19.2264   -12.0621    -12.0175    …    2.62581     1.52876     1.20592
+ -10.7176   -14.5125    -12.606          3.1258      1.56855     4.57524
+ -14.3852   -16.0882    -13.3934       -23.0344      1.68604     3.01471
+ -17.1082   -15.329     -19.2            2.05387   -24.0356      0.989551
+ -10.5072   -15.487      -6.62761        2.782       0.779737  -22.8555
+   ⋮                                ⋱
+   2.58036  -24.4695      2.07006      -24.021     -23.8787    -27.8585
+   1.89098    2.17065   -22.4464       -23.08      -30.9024     -9.55754
+   2.61367    0.527282    4.11756      -25.9175    -29.0548    -25.1284
+   1.32487    2.62311     1.81452      -10.3305    -33.3166    -28.2058
+   4.38738    2.70022     2.26919   …  -24.989     -14.3184    -14.709
+   2.35905    2.61837     3.19376      -27.9683    -10.0384    -35.3332
+   2.10997    4.13256     2.06392      207.847     -14.4437    -27.8397
+   3.2973     2.88408     3.5336       -14.4437    202.543      -9.07334
+   2.15045    3.37857     0.785492     -27.8397     -9.07334   203.179</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; sqrt.(diag(model.Σcov))</code><code class="nohighlight hljs ansi" style="display:block;">50-element Vector{Float64}:
+ 0.4817814394621775
+ 0.3600780737150553
+ 0.399413516827355
+ 0.43826569745687527
+ 0.5379249378426599
+ 0.4158212568230933
+ 0.48025136059166135
+ 0.605909927740525
+ 0.5247990737121152
+ 0.7868071879851558
+ ⋮
+ 0.43094058647906963
+ 0.42319378519347745
+ 0.565370622370508
+ 0.620820315435408
+ 0.4243479458515862
+ 0.62193859580387
+ 0.5287399841380109
+ 0.6005678267560065
+ 1.032807394810478</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; sqrt.(diag(model.Bcov_reml))</code><code class="nohighlight hljs ansi" style="display:block;">40-element Vector{Float64}:
+ 11.11903040001307
+ 11.502739951403246
+ 11.022678547539146
+ 10.953777372201422
+ 11.370913716182145
+ 10.674759820931808
+ 11.332452931121253
+ 11.222723591150565
+ 11.127685963907439
+ 11.127821583548805
+  ⋮
+ 14.7775966468423
+ 14.333023649773452
+ 14.188614458028923
+ 14.587197986392733
+ 13.712851512303274
+ 14.671394045741422
+ 14.416910823250369
+ 14.231771322719258
+ 14.254087547258141</code></pre><h1 id="Estimation-only"><a class="docs-heading-anchor" href="#Estimation-only">Estimation only</a><a id="Estimation-only-1"></a><a class="docs-heading-anchor-permalink" href="#Estimation-only" title="Permalink"></a></h1><p>Calculating standard errors can be memory-consuming, so you could instead forego such calculation via:</p><pre><code class="language-julia hljs">model = MRVCModel(Y, X, V; se = false)
+@timev fit!(model)</code></pre><h1 id="Special-case:-missing-response"><a class="docs-heading-anchor" href="#Special-case:-missing-response">Special case: missing response</a><a id="Special-case:-missing-response-1"></a><a class="docs-heading-anchor-permalink" href="#Special-case:-missing-response" title="Permalink"></a></h1><p>You can also fit data with missing response. For example:</p><pre><code class="language-julia hljs">Y_miss = Matrix{Union{eltype(Y), Missing}}(missing, size(Y))
+copy!(Y_miss, Y)
+Y_miss[rand(1:length(Y_miss), n)] .= missing
+
+model = MRVCModel(Y_miss, X, V; se = false)
+@timev fit!(model)</code></pre><h1 id="Special-case:-m-2"><a class="docs-heading-anchor" href="#Special-case:-m-2">Special case: <span>$m = 2$</span></a><a id="Special-case:-m-2-1"></a><a class="docs-heading-anchor-permalink" href="#Special-case:-m-2" title="Permalink"></a></h1><p>When there are <strong>two</strong> variance components, you can accelerate fitting by avoiding large matrix inversion per iteration. To illustrate this, you can first simulate data as done previously but with larger <span>$nd$</span> and <span>$m = 2$</span>.</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; function simulate(n, d, p, m)
+           X = rand(n, p)
+           B = rand(p, d)
+           V = [zeros(n, n) for _ in 1:m]
+           Σ = [zeros(d, d) for _ in 1:m]
+           Ω = zeros(n * d, n * d)
+           for i in 1:m
+               Vi = randn(n, n)
+               mul!(V[i], transpose(Vi), Vi)
+               Σi = randn(d, d)
+               mul!(Σ[i], transpose(Σi), Σi)
+               kron_axpy!(Σ[i], V[i], Ω) # Ω = Σ[1]⊗V[1] + ... + Σ[m]⊗V[m]
+           end
+           Ωchol = cholesky(Ω)
+           Y = X * B + reshape(Ωchol.L * randn(n * d), n, d)
+           Y, X, V, B, Σ
+       end</code><code class="nohighlight hljs ansi" style="display:block;">simulate (generic function with 1 method)</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; Y, X, V, B, Σ = simulate(5_000, 4, 10, 2)</code><code class="nohighlight hljs ansi" style="display:block;">([-190.51525894755056 -197.99802024269138 43.94774611295394 140.1070725261249; -396.6823922529648 -16.71272883976491 -345.7948954685269 -14.35146039700345; … ; -82.01033065909806 277.9336865373929 -292.29138410467914 -35.88296548274598; -255.8508242914247 -155.3432104192576 337.21315251606876 4.941408740839341], [0.9307863387844545 0.3645922353281711 … 0.7851497778403038 0.2380199512431035; 0.4658089381731716 0.7546614571786062 … 0.9566990733680413 0.5756529133210899; … ; 0.630148153432721 0.5949465810379175 … 0.9177860963054532 0.5530995895035309; 0.18574270879978605 0.20177942526623938 … 0.44645214827650714 0.41917185706215365], [[5089.565253337887 -33.52731539921264 … -85.70453276960903 -15.671178003333708; -33.52731539921264 4997.578475765903 … 24.456447628093148 35.93961394419708; … ; -85.70453276960903 24.456447628093148 … 4892.538328144705 139.3835687571418; -15.671178003333708 35.93961394419708 … 139.3835687571418 5083.593996910069], [5048.502826078417 -18.3228737305907 … -86.55937590115643 56.08439879798838; -18.3228737305907 5089.150525347895 … -78.89313586934458 -142.5860693152687; … ; -86.55937590115643 -78.89313586934458 … 5002.014277072765 -59.91811637475972; 56.08439879798838 -142.5860693152687 … -59.91811637475972 5008.658469959726]], [0.630947226634082 0.3313459578889061 0.35815592794469575 0.9230411797534721; 0.9525800461637306 0.8576349453207862 0.2552236407448071 0.05707509667199839; … ; 0.6314145046075217 0.6357626562502817 0.37180456615315693 0.5965200795146085; 0.5801445853207691 0.5062459188820221 0.7618800353411184 0.6946926632513486], [[1.4321088080769628 -0.995632641106693 0.026906119932738146 0.7227908548232326; -0.995632641106693 4.9146021535594535 -1.8098281141629997 -1.7701005827832266; 0.026906119932738146 -1.8098281141629997 3.058517233758183 -1.2035494924175008; 0.7227908548232326 -1.7701005827832266 -1.2035494924175008 2.393437385250655], [13.73983741069325 2.7451646646776995 3.4176300359319987 -3.885106282485695; 2.7451646646776995 11.74321980607165 -3.802414126310811 -4.436257912267988; 3.4176300359319987 -3.802414126310811 11.285153692786913 0.927114778994731; -3.885106282485695 -4.436257912267988 0.927114778994731 2.3913571878288105]])</code></pre><p>Then you can fit data as follows:</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; model = MRTVCModel(Y, X, V)</code><code class="nohighlight hljs ansi" style="display:block;"><span class="sgr4">A multivariate response two variance component model</span>
+   * number of responses: <span class="sgr33">4</span>
+   * number of observations: <span class="sgr33">5000</span>
+   * number of fixed effects: <span class="sgr33">10</span>
+   * number of variance components: <span class="sgr33">2</span></code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; @timev fit!(model)</code><code class="nohighlight hljs ansi" style="display:block;">[ Info: Running MM algorithm with generalized eigen-decomposition for ML estimation
+iter = 0, logl = -133697.84010830714
+iter = 1, logl = -131679.3138276846
+iter = 2, logl = -130646.71318405455
+iter = 3, logl = -130063.64577171221
+iter = 4, logl = -129700.6559258397
+iter = 5, logl = -129464.43756771987
+iter = 6, logl = -129309.06131949065
+iter = 7, logl = -129207.66561884663
+iter = 8, logl = -129142.58969638187
+iter = 9, logl = -129101.6354535961
+iter = 10, logl = -129076.3554263312
+iter = 11, logl = -129061.0195147587
+iter = 12, logl = -129051.85199923288
+iter = 13, logl = -129046.43689888214
+iter = 14, logl = -129043.26815548321
+iter = 15, logl = -129041.42712758503
+iter = 16, logl = -129040.36313508022
+iter = 17, logl = -129039.7505117447
+iter = 18, logl = -129039.39864313263
+iter = 19, logl = -129039.19682350504
+iter = 20, logl = -129039.08112232418
+[ Info: Calculating standard errors
+  1.761737 seconds (3.06 M allocations: 157.032 MiB, 88.12% compilation time)
+elapsed time (ns):  1.761737083e9
+gc time (ns):       0
+bytes allocated:    164659640
+pool allocs:        3058676
+non-pool GC allocs: 118
+malloc() calls:     4504
+free() calls:       0
+minor collections:  0
+full collections:   0
+Converged after 21 iterations.</code><br/><code class="language-julia-repl hljs" style="display:block;">julia&gt; reduce(hcat, [hcat(vech(Σ[i]), vech(model.Σ[i])) for i in 1:2])</code><code class="nohighlight hljs ansi" style="display:block;">10×4 Matrix{Float64}:
+  1.43211     1.40189    13.7398    14.0248
+ -0.995633   -0.923636    2.74516    2.56101
+  0.0269061  -0.0478934   3.41763    3.58479
+  0.722791    0.69205    -3.88511   -3.90127
+  4.9146      4.55272    11.7432    11.7598
+ -1.80983    -1.71523    -3.80241   -3.79244
+ -1.7701     -1.64119    -4.43626   -4.41977
+  3.05852     3.0757     11.2852    11.1981
+ -1.20355    -1.26412     0.927115   0.903965
+  2.39344     2.34984     2.39136    2.39243</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../advanced/">Advanced details »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.0 on <span class="colophon-date" title="Friday 3 January 2025 03:18">Friday 3 January 2025</span>. Using Julia version 1.11.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
