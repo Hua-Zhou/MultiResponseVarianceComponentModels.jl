@@ -4,6 +4,7 @@
 [![Latest](https://img.shields.io/badge/docs-latest-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/dev)
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](http://hua-zhou.github.io/MultiResponseVarianceComponentModels.jl/stable)
 [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
+[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/blob/master/LICENSE)
 [![CI](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/workflows/CI/badge.svg)](https://github.com/Hua-Zhou/MultiResponseVarianceComponentModels.jl/actions)
 [![Codecov](https://codecov.io/gh/Hua-Zhou/MultiResponseVarianceComponentModels.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Hua-Zhou/MultiResponseVarianceComponentModels.jl)
 
