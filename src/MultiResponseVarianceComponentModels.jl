@@ -391,6 +391,7 @@ function MRTVCModel(
         nd, pd = n * d, p * d
         nd_reml, pd_reml = n_reml * d, p_reml * d
         D_reml, U_reml = eigen(Symmetric(V_reml[1]), Symmetric(V_reml[2]))
+        map!(x -> max(x, zero(T)), D_reml, D_reml) # correct negative eigenvalues from roundoff
         logdetV2_reml = logdet(V_reml[2])
         Ỹ_reml = transpose(U_reml) * Y_reml
         X̃_reml = transpose(U_reml) * X_reml
@@ -419,6 +420,7 @@ function MRTVCModel(
         Bcov = Σcov = Bcov_reml = nothing
     end
     D, U = eigen(Symmetric(V[1]), Symmetric(V[2]))
+    map!(x -> max(x, zero(T)), D, D)
     logdetV2 = logdet(V[2])
     Ỹ = transpose(U) * Y
     X̃ = p == 0 ? Matrix{T}(undef, n, 0) : transpose(U) * Xmat
