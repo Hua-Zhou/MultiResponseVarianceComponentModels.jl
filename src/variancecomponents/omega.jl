@@ -14,7 +14,8 @@ Fields:
 - `factor`: pre-allocated matrix for Cholesky factor or full Ω
 - `factorized`: Ref{Bool} to track if factorization is up to date
 - `n`: sample size (dimension of V)
-- `d`: response dimension 
+- `d`: response dimension (dimension of Σ)
+- `storage_n_d`: pre-allocated matrix for intermediate computations
 
 """
 struct ΩMatrix{T<:BlasReal,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
@@ -44,9 +45,7 @@ Construct lazy Ω matrix from tuple of variance component structures.
 - K: number of variance components
 - VC: tuple type of variance component structures
 """
-function ΩMatrix(
-    varcomp::VC
-) where {T,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
+function ΩMatrix(varcomp::VC) where {T,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
     n = size(first(varcomp).V, 1)
     d = size(first(varcomp).Σ, 1)
     nd = n * d

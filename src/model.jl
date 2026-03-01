@@ -19,9 +19,7 @@ for common cases (especially K=2).
 - `se`: Whether to compute standard errors
 """
 
-struct MRVCModel{
-    T<:BlasReal,K<:Integer,VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}}
-} <: VCModel
+struct MRVCModel{T<:BlasReal,K,VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}}} <: VCModel
     # data
     Y::Matrix{T}
     X::Matrix{T}
@@ -272,9 +270,8 @@ Get number of variance components (compile-time constant).
 nvcomp(::MRVCModel{T,K}) where {T,K} = K
 
 """
-    is_bivariate(model::MRVCModel{T,K}) where {T,K}
+    is_two(model::MRVCModel{T,K}) where {T,K}
 
 Check if model has exactly two variance components (for dispatch).
 """
-is_bivariate(::MRVCModel{T,K}) where {T,K} = false
-is_bivariate(::MRVCModel{T,2}) where {T} = true
+is_two(::MRVCModel{T,K}) where {T,K} = K == 2

@@ -5,9 +5,11 @@ maximum likelihood (REML) estimation and inference.
 """
 module MultiResponseVarianceComponentModels
 
-using IterativeSolvers
 using LinearAlgebra
+using StatsBase
+using StatsFuns
 using Distributions
+using IterativeSolvers
 using SweepOperator
 using InvertedIndices
 
@@ -60,7 +62,7 @@ include("model.jl")               # NEW: Replaces MRVCModel.jl and SimpleMRVCMod
 # include("MRTVCModel.jl")        # OLD: Deprecated, K=2 handled in model.jl
 include("reml.jl")
 # include("fit.jl")               # OLD: For old MRVCModel
-include("simplefit.jl")           # Rewritten for new MRVCModel
+include("newfit.jl")           # Rewritten for new MRVCModel
 # include("eigen.jl")             # OLD: For MRTVCModel only, TODO: add K=2 methods
 # include("manopt.jl")            # OLD: Manifold optimization (performance issues)
 include("parse.jl")

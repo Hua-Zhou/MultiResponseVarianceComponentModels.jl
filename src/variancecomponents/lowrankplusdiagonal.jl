@@ -4,7 +4,7 @@ struct LowRankPlusDiagonal{T} <: VarCompStructure{T}
     Ψ::Vector{T}
     # working arrays
     Σ::Matrix{T}
-    storage_nd_nd::Matrix{T}
+    # storage_nd_nd::Matrix{T}
     storage_nn::Matrix{T}
     storage_dd_1::Matrix{T}
     storage_dd_2::Matrix{T}
@@ -35,7 +35,7 @@ function LowRankPlusDiagonal(F::Matrix{T}, Ψ::Vector{T}, V::Matrix{T}) where {T
     pardim = d * (r + 1)
     # Here, `Σrank` is not the rank of Σ = FFᵀ + Ψ, but the number of columns in F
     Σrank = r
-    storage_nd_nd = Matrix{T}(undef, nd, nd)
+    # storage_nd_nd = Matrix{T}(undef, nd, nd)
     storage_nn = Matrix{T}(undef, n, n)
     storage_dd_1 = Matrix{T}(undef, d, d)
     storage_dd_2 = Matrix{T}(undef, d, d)
@@ -50,7 +50,7 @@ function LowRankPlusDiagonal(F::Matrix{T}, Ψ::Vector{T}, V::Matrix{T}) where {T
         F,
         Ψ,
         Σ,
-        storage_nd_nd,
+        # storage_nd_nd,
         storage_nn,
         storage_dd_1,
         storage_dd_2,
@@ -74,7 +74,7 @@ end
 
 # Constructor when given Σ, rank of F, and V
 function LowRankPlusDiagonal(
-    Σ::Matrix{T}, r::Int, V::Matrix{T}; eps::T=T(1e-6)) where {T}
+    Σ::Matrix{T}, r::Int, V::Matrix{T}; eps::T=T(1e-8)) where {T}
     # Best rank-r approximation to Σ
     d = checksquare(Σ)
     # by convention, `eigen` is normally smallest to largest
@@ -135,7 +135,7 @@ function materialize!(VC::LowRankPlusDiagonal{T}) where {T}
     return copytri!(Σ, 'L')
 end
 
-@inline function update_Ψ!(VC::LowRankPlusDiagonal{T}; eps::T=T(1e-6)) where {T}
+@inline function update_Ψ!(VC::LowRankPlusDiagonal{T}; eps::T=T(1e-8)) where {T}
     Ψ = VC.Ψ
     M = VC.storage_dd_1
     N = VC.storage_dd_2

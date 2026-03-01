@@ -3,7 +3,7 @@ struct Unstructured{T} <: VarCompStructure{T}
     L             :: Matrix{T}
     # working arrays
     Σ             :: Matrix{T}
-    storage_nd_nd :: Matrix{T}
+    # storage_nd_nd :: Matrix{T}
     storage_nn    :: Matrix{T}
     storage_dd_1  :: Matrix{T}
     storage_dd_2  :: Matrix{T}
@@ -25,7 +25,7 @@ function Unstructured(Σ::Matrix{T}, V::Matrix{T}) where {T}
     tril!(L)
     pardim = ◺(d)
     Σrank = rank(Σ)
-    storage_nd_nd = Matrix{T}(undef, nd, nd)
+    # storage_nd_nd = Matrix{T}(undef, nd, nd)
     storage_nn = Matrix{T}(undef, n, n)
     storage_dd_1 = Matrix{T}(undef, d, d)
     storage_dd_2 = similar(storage_dd_1)
@@ -33,7 +33,7 @@ function Unstructured(Σ::Matrix{T}, V::Matrix{T}) where {T}
     # avoid evaluation of rank(V), only provide it if needed
     Vrank = n
     return Unstructured{T}(L, Σ, 
-                           storage_nd_nd, 
+                        #    storage_nd_nd, 
                            storage_nn,
                            storage_dd_1, 
                            storage_dd_2, 
@@ -77,11 +77,11 @@ function update_Σ!(VC::Unstructured{T}, ::Val{:MM}; tol=T(1e-6)) where {T}
     N = VC.storage_dd_2
     C = VC.storage_dd_3
     storage_dd = view(VC.storage_nn, 1:d, 1:d)
-    # Assume M = tr[Ω⁻¹ ⊗ V] already stored
+    # Assume M = tr[Ωinv ⊗ V] already stored
     # Lower Cholesky factor L_M, M = L_M L_Mᵀ
     L_M, info = LAPACK.potrf!('L', M)
     info > 0 && throw(PosDefException(info))
-    # Assume N = R̃ᵀVR̃ where R̃ = vec⁻¹(Ω⁻¹ vec(R)) stored
+    # Assume N = R̃ᵀVR̃ where R̃ = vec⁻¹(Ωinv vec(R)) stored
     # C = LᵀΣNΣL
     # assume current estimate of Σ(n) is stored in `VC.Σ`
     _update_ΣNΣ!(C, N, Σ, storage_dd)
