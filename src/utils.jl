@@ -44,7 +44,6 @@ Fill the lower triangular part of `A` with `vechA`, unexported
     return nothing
 end
 
-
 """
    unvech!(A::AbstractMatrix{T}, vechA::AbstractVector{T})
 
@@ -146,14 +145,16 @@ end
 """
 
 """
-# syev! with all workspace defined
-for (syev, elty) in ((:dsyev_, :Float64), (:ssyev_, :Float32))
+
+for (syev, syevr, elty) in ((:dsyev_, :dsyevr_, :Float64), (:ssyev_, :ssyevr_, :Float32))    
     @eval begin
-        function _syev_lwork!(jobz::AbstractChar, uplo::AbstractChar, A::AbstractMatrix{$elty})
+        function _syev_lwork!(jobz::AbstractChar, 
+                              uplo::AbstractChar, 
+                              A::AbstractMatrix{$elty})
             Base.require_one_based_indexing(A)
             jobz in ('N', 'V') || throw(ArgumentError("jobz must be 'N' or 'V', got '$jobz'"))
             uplo in ('U', 'L') || throw(ArgumentError("uplo must be 'U' or 'L', got '$uplo'"))
-            n    = LinearAlgebra.checksquare(A)
+            n    = checksquare(A)
             W    = Vector{$elty}(undef, n)
             work = Vector{$elty}(undef, 1)
             info = Ref{BlasInt}()
@@ -178,29 +179,36 @@ for (syev, elty) in ((:dsyev_, :Float64), (:ssyev_, :Float32))
             stride(A,    1) == 1 || throw(ArgumentError("A must have stride 1 in the first dimension"))
             stride(W,    1) == 1 || throw(ArgumentError("W must have stride 1 in the first dimension"))
             stride(work, 1) == 1 || throw(ArgumentError("work must have stride 1 in the first dimension"))
-            n    = LinearAlgebra.checksquare(A)
-            # info = Ref{BlasInt}()
+            n    = checksquare(A)
             ccall((@blasfunc($syev), liblapack), Cvoid,
                   (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
                    Ptr{$elty}, Ptr{$elty}, Ref{BlasInt}, Ref{BlasInt}, Clong, Clong),
                   jobz, uplo, n, A, max(1, stride(A, 2)), W, work, BlasInt(length(work)), info, 1, 1)
             info[] < 0 && throw(ArgumentError("invalid argument #$(-info[]) to LAPACK call"))
             info[] > 0 && throw(ErrorException("LAPACK $($syev) failed to converge: info = $(info[])"))
-            jobz == 'V' ? (W, A) : W
+            return info[]
+            # jobz == 'V' ? (W, A) : W
         end
 
-        function _syevr_lwork!(jobz::AbstractChar, uplo::AbstractChar, A::AbstractMatrix{$elty})
+        # Returns (lwork, liwork, lisuppz) - all workspaces must be queried together
+        function _syevr_lwork!(jobz::AbstractChar, range::AbstractChar, uplo::AbstractChar,
+                               A::AbstractMatrix{$elty},
+                               vl::AbstractFloat, vu::AbstractFloat,
+                               il::Integer, iu::Integer,
+                               abstol::AbstractFloat)
             Base.require_one_based_indexing(A)
-            jobz ∈ ('N', 'V') || throw(ArgumentError("jobz must be 'N' or 'V', got '$jobz'"))
-            uplo ∈ ('U', 'L') || throw(ArgumentError("uplo must be 'U' or 'L', got '$uplo'"))
+            jobz  in ('N', 'V')      || throw(ArgumentError("jobz must be 'N' or 'V', got '$jobz'"))
+            range in ('A', 'V', 'I') || throw(ArgumentError("range must be 'A', 'V', or 'I', got '$range'"))
+            uplo  in ('U', 'L')      || throw(ArgumentError("uplo must be 'U' or 'L', got '$uplo'"))
             n      = checksquare(A)
+            m      = Ref{BlasInt}()
             W      = Vector{$elty}(undef, n)
-            Z      = Matrix{$elty}(undef, jobz == 'V' ? n : 0, n)
+            ldz    = jobz == 'V' ? n : 1
+            Z      = Vector{$elty}(undef, jobz == 'V' ? ldz * n : 0)
             isuppz = Vector{BlasInt}(undef, 2n)
             work   = Vector{$elty}(undef, 1)
             iwork  = Vector{BlasInt}(undef, 1)
             info   = Ref{BlasInt}()
-            m      = Ref{BlasInt}()
             ccall((@blasfunc($syevr), liblapack), Cvoid,
                   (Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{BlasInt},
                    Ptr{$elty}, Ref{BlasInt}, Ref{$elty}, Ref{$elty},
@@ -208,29 +216,43 @@ for (syev, elty) in ((:dsyev_, :Float64), (:ssyev_, :Float32))
                    Ptr{$elty}, Ptr{$elty}, Ref{BlasInt}, Ptr{BlasInt},
                    Ptr{$elty}, Ref{BlasInt}, Ptr{BlasInt}, Ref{BlasInt},
                    Ref{BlasInt}, Clong, Clong, Clong),
-                  jobz, 'A', uplo, n,
-                  A, max(1, stride(A, 2)), $elty(0), $elty(0),
-                  BlasInt(0), BlasInt(0), $elty(-1), m,
-                  W, Z, max(1, n), isuppz,
+                  jobz, range, uplo, n,
+                  A, max(1, stride(A, 2)), vl, vu,
+                  il, iu, abstol, m,
+                  W, Z, max(1, ldz), isuppz,
                   work, BlasInt(-1), iwork, BlasInt(-1),
                   info, 1, 1, 1)
             info[] < 0 && throw(ArgumentError("invalid argument #$(-info[]) to LAPACK call"))
-            BlasInt(work[1]), BlasInt(iwork[1])
+            BlasInt(work[1]), iwork[1], BlasInt(2n)  # (lwork, liwork, lisuppz)
         end
 
-        function _syevr!(jobz::AbstractChar, uplo::AbstractChar,
+        function _syevr!(jobz::AbstractChar, range::AbstractChar, uplo::AbstractChar,
                          A::AbstractMatrix{$elty},
+                         vl::$elty, vu::$elty,
+                         il::BlasInt, iu::BlasInt,
+                         abstol::$elty,
                          W::AbstractVector{$elty},
                          Z::AbstractMatrix{$elty},
                          isuppz::AbstractVector{BlasInt},
                          work::AbstractVector{$elty},
-                         iwork::AbstractVector{BlasInt})
+                         iwork::AbstractVector{BlasInt},
+                         m::Ref{BlasInt},
+                         info::Ref{BlasInt}
+                         )
             Base.require_one_based_indexing(A, W, Z, isuppz, work, iwork)
-            jobz ∈ ('N', 'V') || throw(ArgumentError("jobz must be 'N' or 'V', got '$jobz'"))
-            uplo ∈ ('U', 'L') || throw(ArgumentError("uplo must be 'U' or 'L', got '$uplo'"))
+            jobz  in ('N', 'V')      || throw(ArgumentError("jobz must be 'N' or 'V', got '$jobz'"))
+            range in ('A', 'V', 'I') || throw(ArgumentError("range must be 'A', 'V', or 'I', got '$range'"))
+            uplo  in ('U', 'L')      || throw(ArgumentError("uplo must be 'U' or 'L', got '$uplo'"))
+            stride(A,      1) == 1 || throw(ArgumentError("A must have stride 1 in the first dimension"))
+            stride(W,      1) == 1 || throw(ArgumentError("W must have stride 1 in the first dimension"))
+            stride(Z,      1) == 1 || throw(ArgumentError("Z must have stride 1 in the first dimension"))
+            stride(isuppz, 1) == 1 || throw(ArgumentError("isuppz must have stride 1 in the first dimension"))
+            stride(work,   1) == 1 || throw(ArgumentError("work must have stride 1 in the first dimension"))
+            stride(iwork,  1) == 1 || throw(ArgumentError("iwork must have stride 1 in the first dimension"))
             n    = checksquare(A)
-            m    = Ref{BlasInt}()
-            info = Ref{BlasInt}()
+            ldz  = max(1, stride(Z, 2))
+            # m    = Ref{BlasInt}()
+            # info = Ref{BlasInt}()
             ccall((@blasfunc($syevr), liblapack), Cvoid,
                   (Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{BlasInt},
                    Ptr{$elty}, Ref{BlasInt}, Ref{$elty}, Ref{$elty},
@@ -238,15 +260,15 @@ for (syev, elty) in ((:dsyev_, :Float64), (:ssyev_, :Float32))
                    Ptr{$elty}, Ptr{$elty}, Ref{BlasInt}, Ptr{BlasInt},
                    Ptr{$elty}, Ref{BlasInt}, Ptr{BlasInt}, Ref{BlasInt},
                    Ref{BlasInt}, Clong, Clong, Clong),
-                  jobz, 'A', uplo, n,
-                  A, max(1, stride(A, 2)), $elty(0), $elty(0),
-                  BlasInt(0), BlasInt(0), $elty(-1), m,
-                  W, Z, max(1, n), isuppz,
+                  jobz, range, uplo, n,
+                  A, max(1, stride(A, 2)), vl, vu,
+                  il, iu, abstol, m,
+                  W, Z, ldz, isuppz,
                   work, BlasInt(length(work)), iwork, BlasInt(length(iwork)),
                   info, 1, 1, 1)
             info[] < 0 && throw(ArgumentError("invalid argument #$(-info[]) to LAPACK call"))
             info[] > 0 && throw(ErrorException("LAPACK $($syevr) failed to converge: info = $(info[])"))
-            jobz == 'V' ? (W, Z) : W
+            m[]
         end
     end
 end
