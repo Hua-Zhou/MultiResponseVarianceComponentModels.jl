@@ -1,18 +1,18 @@
 struct Unstructured{T} <: VarCompStructure{T}
     # parameters
     L             :: Matrix{T}
-    pardim        :: Int
     # working arrays
     Σ             :: Matrix{T}
-    Σrank         :: Int
     storage_nd_nd :: Matrix{T}
     storage_nn    :: Matrix{T}
     storage_dd_1  :: Matrix{T}
     storage_dd_2  :: Matrix{T}
     storage_dd_3  :: Matrix{T}
     # Constants
+    Σrank         :: Int
     V             :: Matrix{T}
     Vrank         :: Int
+    pardim        :: Int
 end
 
 function Unstructured(Σ::Matrix{T}, V::Matrix{T}) where {T}
@@ -32,19 +32,21 @@ function Unstructured(Σ::Matrix{T}, V::Matrix{T}) where {T}
     storage_dd_3 = similar(storage_dd_1)
     # avoid evaluation of rank(V), only provide it if needed
     Vrank = n
-    return Unstructured{T}(L, pardim, 
-                           Σ, Σrank,
+    return Unstructured{T}(L, Σ, 
                            storage_nd_nd, 
                            storage_nn,
                            storage_dd_1, 
                            storage_dd_2, 
                            storage_dd_3, 
+                           Σrank,
                            V, 
-                           Vrank)
+                           Vrank,
+                           pardim
+                           )
 end
 
 function Unstructured(d::Int, V::Matrix{T}) where {T}
-    # initialize with identity, overwritten later anyway
+    # initialize with identity, overwritten later
     Σ = Matrix{T}(UniformScaling{T}(1), d, d)
     # use constructor already defined
     Unstructured(Σ, V)
@@ -56,72 +58,84 @@ function initialize!(VC::Unstructured{T}) where {T}
     return nothing
 end
 
-function update_Σ!(VC::Unstructured{T}, ::Val{:MM}) where {T}
+function initialize!(VC::Unstructured{T}, S::Matrix{T}) where {T}
+    LAPACK.potrf!('L', copyto!(VC.L, S))
+    tril!(VC.L)
+    return nothing
+end
+
+function materialize!(VC::Unstructured{T}) where {T}
+    BLAS.syrk!('L', 'N', one(T), VC.L, zero(T), VC.Σ)
+    return nothing
+end
+
+function update_Σ!(VC::Unstructured{T}, ::Val{:MM}; tol=T(1e-6)) where {T}
     d = size(VC, 1)
+    L = VC.L
+    Σ = VC.Σ
     M = VC.storage_dd_1
     N = VC.storage_dd_2
     C = VC.storage_dd_3
+    storage_dd = view(VC.storage_nn, 1:d, 1:d)
     # Assume M = tr[Ω⁻¹ ⊗ V] already stored
-    # Lower Cholesky factor Lₘ, M = Lₘ Lₘᵀ
-    Lₘ, info = LAPACK.potrf!('L', M)
+    # Lower Cholesky factor L_M, M = L_M L_Mᵀ
+    L_M, info = LAPACK.potrf!('L', M)
     info > 0 && throw(PosDefException(info))
-    # Assume N = ̃R̃ᵀVR̃ where R̃ = vec⁻¹(Ω⁻¹ vec(R)) stored
+    # Assume N = R̃ᵀVR̃ where R̃ = vec⁻¹(Ω⁻¹ vec(R)) stored
     # C = LᵀΣNΣL
-    NΣ = view(VC.storage_nn, 1:d, 1:d)
-    # assume current estimate of Σ⁽ⁿ⁾ is stored in `VC.Σ` 
-    # Intermediate array NΣ, can be immediately re-used
-    BLAS.symm!('L', 'L', one(T), N, VC.Σ, zero(T), NΣ)
-    # update ΣNΣ
-    BLAS.symm!('L', 'L', one(T), VC.Σ, NΣ, zero(T), C)
-    BLAS.trmm!('L', 'L', 'T', 'N', one(T), Lₘ, C)
-    BLAS.trmm!('R', 'L', 'N', 'N', one(T), Lₘ, C)
+    # assume current estimate of Σ(n) is stored in `VC.Σ`
+    _update_ΣNΣ!(C, N, Σ, storage_dd)
+    BLAS.trmm!('L', 'L', 'T', 'N', one(T), L_M, C)
+    BLAS.trmm!('R', 'L', 'N', 'N', one(T), L_M, C)
     # Need symmetric square root of C, C small so syevr! should be fine
-    # eigenvalue upper bound by Perron-Frobenius
-    colsums = view(VC.storage_nn, 1:d)
-    for j in axes(C, 2), i in axes(C, 1)
-        colsums[j] += C[i, j]
-    end
+    # max eigenvalue of C is upper bounded by infinity norm
+    λ_upper_bound = opnorm(C, Inf)
     # LAPACK.syevr! is allocating, which is annoying
-    vals, vecs = LAPACK.syevr!('V', 'A', 'L', C, zero(T), maximum(colsums), 1, d, T(1e-8))
-    for j in eachindex(vals)
-        vj = view(vecs, :, j)
+    vals, vecs = LAPACK.syevr!('V', 'A', 'L', C, 
+                               zero(T), 
+                               λ_upper_bound, 
+                               1, d, 
+                               tol)
+    for j in 1:d
         if vals[j] > 0
-            quadroot = sqrt(sqrt(vals[j]))
-            vj .*= quadroot
+            quadroot::T = sqrt(sqrt(vals[j]))
+            view(vecs, :, j) .*= quadroot
         else
-            fill!(vj, zero(T))
+            fill!(view(vecs, :, j), zero(T))
         end
     end
-    BLAS.syrk!('L', 'N', one(T), vecs, zero(T), VC.Σ)
-    copytri!(VC.Σ, 'L')
-    # Right multiply by L⁻¹
-    BLAS.trsm!('R', 'L', 'N', 'N', one(T), Lₘ, VC.Σ)
-    # Left multiply by L⁻ᵀ
-    BLAS.trsm!('L', 'L', 'T', 'N', one(T), Lₘ, VC.Σ)
+    BLAS.syrk!('L', 'N', one(T), vecs, zero(T), Σ)
+    copytri!(Σ, 'L')
+    # Right multiply by L_M⁻¹
+    BLAS.trsm!('R', 'L', 'N', 'N', one(T), L_M, Σ)
+    # Left multiply by L_M⁻ᵀ
+    BLAS.trsm!('L', 'L', 'T', 'N', one(T), L_M, Σ)
     # Solve for parameters L
-    LAPACK.potrf!('L', copyto!(VC.L, VC.Σ))
-    tril!(VC.L)
-    return VC.Σ
+    LAPACK.potrf!('L', copyto!(L, Σ))
+    tril!(L)
+    return Σ
 end
 
 function update_Σ!(VC::Unstructured{T}, ::Val{:EM}) where {T}
     d = size(VC, 1)
+    L = VC.L
+    Σ = VC.Σ
     M = VC.storage_dd_1
     N = VC.storage_dd_2
     C = VC.storage_dd_3
     C .= (N .- M) ./ VC.Σrank
-    mul!(M, C, VC.Σ)
+    mul!(M, C, Σ)
     for j in 1:d
         M[j, j] += 1
     end
-    mul!(VC.Σ, copyto!(N, VC.Σ), M)
+    mul!(Σ, copyto!(N, Σ), M)
     # Project to 𝕊
-    transpose!(C, VC.Σ)
-    VC.Σ .= (VC.Σ .+ C) ./ 2
+    transpose!(C, Σ)
+    Σ .= (Σ .+ C) ./ 2
     # Solve for parameters L
-    LAPACK.potrf!('L', copyto!(VC.L, VC.Σ))
-    tril!(VC.L)
-    return VC.Σ
+    LAPACK.potrf!('L', copyto!(L, Σ))
+    tril!(L)
+    return Σ
 end
 
 function finalize!(VC::Unstructured{T}) where {T}

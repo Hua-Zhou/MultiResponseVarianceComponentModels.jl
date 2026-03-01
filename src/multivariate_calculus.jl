@@ -4,10 +4,10 @@
 Overwrite `Y` with `A ⊗ X + Y`. Same as `Y += kron(A, X)`, but more memory efficient.
 """
 @inline function kron_axpy!(
-    A :: AbstractVecOrMat{T},
-    X :: AbstractVecOrMat{T},
-    Y :: AbstractVecOrMat{T}
-    ) where {T}
+    A::AbstractVecOrMat{T},
+    X::AbstractVecOrMat{T},
+    Y::AbstractVecOrMat{T}
+) where {T}
     m, n = size(A)
     p, q = size(X)
     mp, nq = size(Y)
@@ -27,10 +27,10 @@ Overwrite `Y` with `A ⊗ X + Y`. Same as `Y += kron(A, X)`, but more memory eff
 end
 
 @inline function symm_kron_axpy!(
-    A :: AbstractMatrix{T},
-    X :: AbstractMatrix{T},
-    Y :: AbstractMatrix{T}
-    ) where {T}
+    A::AbstractMatrix{T},
+    X::AbstractMatrix{T},
+    Y::AbstractMatrix{T}
+) where {T}
     m, n = size(A)
     p, q = size(X)
     mp, nq = size(Y)
@@ -56,16 +56,16 @@ end
 """
     kron_reduction!(A, B, C; sym = false)
 
-Overwrite `C` with the derivative of `tr(A' (X ⊗ B))` wrt `X`.
+Overwrite `C` with the derivative of `tr(Aᵀ (X ⊗ B))` wrt `X`.
 `C[i, j] = dot(Aij, B)`, where `Aij` is the `(i , j)` block of `A`. `sym = true` 
-indicates `A` and `B` are symmetric.
+indicates *both* `A` and `B` are symmetric.
 """
 @inline function kron_reduction!(
-    A   :: AbstractMatrix{T}, 
-    B   :: AbstractMatrix{T},
-    C   :: AbstractMatrix{T};
-    sym :: Bool = false
-    ) where {T}
+    A::AbstractMatrix{T},
+    B::AbstractMatrix{T},
+    C::AbstractMatrix{T};
+    sym::Bool=false,
+) where {T}
     m, n = size(B)
     p, q = size(C)
     @assert size(A, 1) == m * p && size(A, 2) == n * q
@@ -89,11 +89,11 @@ indicates `A` and `B` are symmetric.
     #     end
     # end
     # above code is less efficient for large matrices C
-    # easier and simpler to just iterate over blocks
+    # easier and simpler to just iterate over blocks with views
     for j in axes(C, 2)
         colidx = ((j - 1) * n + 1):(j * n)
         for i in axes(C, 1)
-            rowidx = ((i - 1) * m + 1):(i * m) 
+            rowidx = ((i - 1) * m + 1):(i * m)
             # fill in upper triangle of C
             if i ≤ j || ~sym
                 C[i, j] = dot(view(A, rowidx, colidx), B)
@@ -103,6 +103,13 @@ indicates `A` and `B` are symmetric.
     sym && copytri!(C, 'U')
     return C
 end
+
+"""
+    duplication(n)
+
+Duplication matrix Dₙ of size n² by ◺(n) such that Dₙ * vech(X) = vec(X) 
+for any symmetric matrix X.
+"""
 
 function duplication(n::Int)
     D = zeros(Int, abs2(n), ◺(n))
@@ -117,13 +124,20 @@ function duplication(n::Int)
     return D
 end
 
+"""
+    commutation(m, n)
+
+Commutation matrix Kₘ,ₙ of size mn by mn such that Kₘ,ₙ * vec(X) = vec(X') 
+for any m by n matrix X.
+"""
+
 function commutation(m::Int, n::Int)
     K = zeros(Int, m * n, m * n)
     colK = 1
     @inbounds for j in 1:n, i in 1:m
         rowK          = n * (i - 1) + j
         K[rowK, colK] = 1
-        colK += 1
+        colK          += 1
     end
     return K
 end

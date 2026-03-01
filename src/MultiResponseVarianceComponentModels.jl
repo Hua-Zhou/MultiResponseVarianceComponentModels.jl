@@ -5,23 +5,33 @@ maximum likelihood (REML) estimation and inference.
 """
 module MultiResponseVarianceComponentModels
 
-using IterativeSolvers, LinearAlgebra, Manopt, Manifolds, Distributions, SweepOperator, InvertedIndices
-import LinearAlgebra: BlasReal, copytri!, tril!
+using IterativeSolvers
+using LinearAlgebra
+using Distributions
+using SweepOperator
+using InvertedIndices
+
+using LinearAlgebra: BlasReal, BlasInt, copytri!, tril!, checksquare
+using LinearAlgebra.BLAS: @blasfunc
+
+const liblapack = LinearAlgebra.libblastrampoline
+
+# exports
 export VCModel,
     MultiResponseVarianceComponentModel,
     MRVCModel,
-    MRTVCModel,
-    # fit.jl or eigen.jl
+    # MRTVCModel,  # Deprecated: K=2 handled via dispatch in MRVCModel
+    # fit.jl or simplefit.jl
     fit!,
     loglikelihood!,
     loglikelihood,
-    loglikelihood_reml,
+    # loglikelihood_reml,  # TODO: Add with REML support
     update_res!,
     update_Ω!,
     update_B!,
-    update_B_reml!,
+    # update_B_reml!,  # TODO: Add with REML support
     fisher_B!,
-    fisher_B_reml!,
+    # fisher_B_reml!,  # TODO: Add with REML support
     fisher_Σ!,
     # missing.jl
     permute,
@@ -41,48 +51,19 @@ abstract type VCModel end
 
 include("multivariate_calculus.jl")
 include("utils.jl")
-include("variancecomponents.jl")
-include("unstructured.jl")
-include("lowrankplusdiagonal.jl")
-include("MRVCModel.jl")
-include("MRTVCModel.jl")
-include("SimpleMRVCModel.jl")
+include("variancecomponents/methods.jl")
+include("variancecomponents/unstructured.jl")
+include("variancecomponents/lowrankplusdiagonal.jl")
+include("omega.jl")              # NEW: ΩMatrix type
+include("model.jl")               # NEW: Replaces MRVCModel.jl and SimpleMRVCModel.jl
+# include("MRVCModel.jl")         # OLD: Deprecated
+# include("MRTVCModel.jl")        # OLD: Deprecated, K=2 handled in model.jl
 include("reml.jl")
-include("fit.jl")
-include("simplefit.jl")
-include("eigen.jl")
-include("manopt.jl")
+# include("fit.jl")               # OLD: For old MRVCModel
+include("simplefit.jl")           # Rewritten for new MRVCModel
+# include("eigen.jl")             # OLD: For MRTVCModel only, TODO: add K=2 methods
+# include("manopt.jl")            # OLD: Manifold optimization (performance issues)
 include("parse.jl")
 include("missing.jl")
-
-function Base.show(io::IO, model::VCModel)
-    if model.reml
-        n, d, p, m = size(model.Y_reml, 1), size(model.Y_reml, 2), size(model.X_reml, 2), length(model.V_reml)
-    else
-        n, d, p, m = size(model.Y, 1), size(model.Y, 2), size(model.X, 2), length(model.V)
-    end
-    if d == 1 && model isa MRTVCModel
-        printstyled(io, "A univariate response two variance component model\n"; underline = true)
-    elseif d == 1
-        printstyled(io, "A univariate response variance component model\n"; underline = true)
-    elseif d == 2 && model isa MRTVCModel
-        printstyled(io, "A bivariate response two variance component model\n"; underline = true)
-    elseif d == 2
-        printstyled(io, "A bivariate response variance component model\n"; underline = true)
-    elseif model isa MRTVCModel
-        printstyled(io, "A multivariate response two variance component model\n"; underline = true)
-    else
-        printstyled(io, "A multivariate response variance component model\n"; underline = true)
-    end
-    print(io, "   * number of responses: ")
-    printstyled(io, "$d\n"; color = :yellow)
-    print(io, "   * number of observations: ")
-    printstyled(io, "$n\n"; color = :yellow)
-    print(io, "   * number of fixed effects: ")
-    printstyled(io, "$p\n"; color = :yellow)
-    print(io, "   * number of variance components: ")
-    printstyled(io, "$m"; color = :yellow)
-end
-
 
 end
