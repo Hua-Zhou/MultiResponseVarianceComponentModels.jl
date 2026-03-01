@@ -54,7 +54,7 @@ include("utils.jl")
 include("variancecomponents/methods.jl")
 include("variancecomponents/unstructured.jl")
 include("variancecomponents/lowrankplusdiagonal.jl")
-include("omega.jl")              # NEW: ΩMatrix type
+include("variancecomponents/omega.jl")              # NEW: ΩMatrix type
 include("model.jl")               # NEW: Replaces MRVCModel.jl and SimpleMRVCModel.jl
 # include("MRVCModel.jl")         # OLD: Deprecated
 # include("MRTVCModel.jl")        # OLD: Deprecated, K=2 handled in model.jl
