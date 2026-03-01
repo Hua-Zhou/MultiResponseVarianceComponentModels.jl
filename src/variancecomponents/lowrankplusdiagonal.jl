@@ -93,13 +93,14 @@ function LowRankPlusDiagonal(
     return LowRankPlusDiagonal(F, dg, V)
 end
 
-# initialize F and ψ with best low-rank plus diagonal approximation to S
+
+# initialize F and Ψ with best low-rank plus diagonal approximation to S
 function initialize!(VC::LowRankPlusDiagonal{T},
                      S::Matrix{T};
                      eps::T=T(1e-6)
                      ) where {T}
     F = VC.F
-    ψ = VC.Ψ
+    Ψ = VC.Ψ
     Σ = VC.Σ
     # Best diagonal plus rank-r approximation to S
     d = checksquare(S)
@@ -113,7 +114,7 @@ function initialize!(VC::LowRankPlusDiagonal{T},
             F[i, j] = sqrtλ * S_eig.vectors[i, j]
         end
     end
-    # Initialize ψ with the residual, diag(S - FFᵀ)
+    # Initialize Ψ with the residual, diag(S - FFᵀ)
     # ensure initial point is positive
     Ψ .= diag(S) .- vec(sum(abs2, F; dims=2)) .+ eps
     mul!(Σ, F, transpose(F); alpha = one(T), beta = zero(T))
@@ -139,23 +140,25 @@ end
     Ψ = VC.Ψ
     M = VC.storage_dd_1
     N = VC.storage_dd_2
-    temp_dg = view(VC.Σ, eachindex(Ψ))
+    # storage for candidate update to Ψ, to avoid modifying Ψ 
+    # until we check the rankedness condition
+    Ψnew = view(VC.storage_nn, eachindex(Ψ))
     # Ψ must have at least d - r elements greater than zero
     #  potentially more stable to have constant diagonal
     rank_lower_bound = length(Ψ) - VC.Σrank
-    # the MM update of ψ is a multiplicative scaling
-    # this may lead to continued shrinking of ψ without any escape
+    # the MM update of Ψ is a multiplicative scaling
+    # this may lead to continued shrinking of Ψ without any escape
     rankedness = 0
     @inbounds for i in eachindex(Ψ)
-        temp_dg[i] = sqrt(N[i, i] / M[i, i]) * Ψ[i]
-        if temp_dg[i] > eps
+        Ψnew[i] = sqrt(N[i, i] / M[i, i]) * Ψ[i]
+        if Ψnew[i] > eps
             rankedness += 1
         end
     end
     if rankedness < rank_lower_bound
         @warn "Ψ update has fewer than $(rank_lower_bound) elements greater than $(eps), skipping update for Ψ"
     else
-        copyto!(Ψ, temp_dg)
+        copyto!(Ψ, Ψnew)
     end
     return Ψ
 end
@@ -164,14 +167,14 @@ function _update_W!(
     W::AbstractMatrix{T},
     H::AbstractMatrix{T},
     F::AbstractMatrix{T},
-    sqrtψ::AbstractVector{T},
+    sqrtΨ::AbstractVector{T},
 ) where {T}
     # update H in-place, H = (√Ψ) \ F
-    for j in axes(F, 2), i in axes(F, 1)
-        H[i, j] = F[i, j] / sqrtψ[i]
+    @inbounds for j in axes(F, 2), i in axes(F, 1)
+        H[i, j] = F[i, j] / sqrtΨ[i]
     end
     BLAS.syrk!('L', 'T', one(T), H, zero(T), W)
-    for i in 1:r
+    @inbounds for i in 1:r
         W[i, i] += one(T)
     end
     return copytri!(W, 'L')
@@ -189,9 +192,7 @@ function update_F!(VC::LowRankPlusDiagonal{T}) where {T}
 
     storage_dd = view(VC.storage_nn, 1:d, 1:d)
     # avoid same memory space as d by d storage 
-    storage_d = view(VC.storage_nn, 1:d, (d + 1))
-
-    sqrtΨ = storage_d
+    sqrtΨ = copyto!(view(VC.storage_nn, 1:d, (d + 1)), Ψ)
     sqrtΨ .= sqrt.(Ψ)
 
     # assume current estimate of Σ(n) is stored in `VC.Σ` 
@@ -211,7 +212,7 @@ function update_F!(VC::LowRankPlusDiagonal{T}) where {T}
     H_Winv = view(VC.storage_nn, (3d + 1):(4d), (r + 1):(2r))
     W      = view(VC.storage_nn, (4d + 1):(4d + r), 1:r)
     # H is updated when W is updated
-    _update_W!(W, H, F, storage_d)
+    _update_W!(W, H, F, sqrtΨ)
     # Factorize W since we need W⁻¹
     _, info[] = LAPACK.potrf!('L', W)
     info[] > 0 && throw(PosDefException(info[]))
@@ -253,17 +254,16 @@ function update_Σ!(VC::LowRankPlusDiagonal{T}, ::Val{:MM}) where {T}
     # F(n+1) is a function of F(n) and Ψ(n)
     # depends on Ψ(n), so F must be updated first to agree with the math
     update_F!(VC)
-    # ψ(n+1) is a function of Σ(n) which is not updated yet
+    # Ψ(n+1) is a function of Σ(n) which is not updated yet
     update_Ψ!(VC)
     # After updating F and Ψ, we materialize Σ(n+1) in place
     return materialize!(VC)
-    # rotate_F!(VC)
 end
 
 function finalize!(VC::LowRankPlusDiagonal{T}) where {T}
     F = VC.F
     d, r = size(F)
-    storage_d = view(VC.storage_nn, 1:d, 1)
+    storage_d = view(VC.storage_nn, 1:d, r+1)
     if r > 1
         # Evaluate FᵀΨ⁻¹F
         Ψinv_F = view(VC.storage_nn, 1:d, 1:r)
@@ -271,7 +271,7 @@ function finalize!(VC::LowRankPlusDiagonal{T}) where {T}
             Ψinv_F[i, j] = F[i, j] / VC.Ψ[i]
         end
         Ft_Ψinv_F = view(VC.storage_nn, (d + 1):(d + r), 1:r)
-        mul!(Ft_Ψinv_F, transpose(F), Ψinv_F)
+        mul!(Ft_Ψinv_F, transpose(F), Ψinv_F) # Ψinv_F is free to be overwritten after this
         _, vecs = _syev!('V', 'L', Ft_Ψinv_F, storage_d, VC.workspace, VC.info)
         reverse!(vecs; dims=2)
         mul!(F, copyto!(Ψinv_F, F), vecs)

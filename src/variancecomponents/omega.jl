@@ -22,9 +22,9 @@ struct ΩMatrix{T<:BlasReal,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
     # Tuple of variance components (holds Σ[i] and V[i] for i=1..K)
     varcomp::VC
     # Factorization storage
-    factor     :: Matrix{T}
+    factor::Matrix{T}
     # state tracking (Ref for mutability in immutable struct)
-    factorized :: Ref{Bool}
+    factorized::Ref{Bool}
     # Dimensions
     n::Int                   # sample size
     d::Int                   # response dimension
@@ -33,7 +33,7 @@ struct ΩMatrix{T<:BlasReal,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
 end
 
 # Methods interface for compatibility
-Base.size(Ω::ΩMatrix) = (Ω.n * Ω.d, Ω.n * Ω.d)
+Base.size(Ω::ΩMatrix{T}) where {T} = (Ω.n * Ω.d, Ω.n * Ω.d)
 Base.eltype(::ΩMatrix{T}) where {T} = T
 
 """
@@ -45,7 +45,9 @@ Construct lazy Ω matrix from tuple of variance component structures.
 - K: number of variance components
 - VC: tuple type of variance component structures
 """
-function ΩMatrix(varcomp::VC) where {T,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
+function ΩMatrix(
+    varcomp::VC
+) where {T,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
     n = size(first(varcomp).V, 1)
     d = size(first(varcomp).Σ, 1)
     nd = n * d
@@ -55,8 +57,16 @@ function ΩMatrix(varcomp::VC) where {T,K,VC<:Tuple{Vararg{VarCompStructure{T},K
 end
 
 # Helper functions to avoid [] syntax everywhere
-@inline is_factorized(Ω::ΩMatrix) = Ω.factorized[]
-@inline set_factorized!(Ω::ΩMatrix, val::Bool) = (Ω.factorized[] = val)
+@inline is_factorized(Ω::ΩMatrix{T}) where {T} = Ω.factorized[]
+@inline set_factorized!(Ω::ΩMatrix{T}, val::Bool) where {T} =
+    (Ω.factorized[] = val)
+
+"""
+    invalidate!(Ω::ΩMatrix)
+
+Flag factorization when a parameter changes value.
+"""
+invalidate!(Ω::ΩMatrix{T}) where {T} = set_factorized!(Ω, false)
 
 """
     _kron_sum!(dest::Matrix, vc::Tuple)
@@ -99,15 +109,6 @@ function factorize!(Ω::ΩMatrix{T}) where {T}
     return Ω
 end
 
-"""
-    invalidate!(Ω::ΩMatrix)
-
-Flag factorization when a parameter changes value.
-"""
-function invalidate!(Ω::ΩMatrix)
-    set_factorized!(Ω, false)
-    return Ω
-end
 
 """
     ldiv!(dest::Matrix, Ω::ΩMatrix, B::Matrix)
@@ -115,23 +116,10 @@ end
 Solve ΩX = B directly using Cholesky factorization, modifying Ω in-place.
 """
 function LinearAlgebra.ldiv!(
-    dest::AbstractMatrix{T},
-    Ω::ΩMatrix{T},
-    B::AbstractMatrix{T},
+    dest::AbstractVecOrMat{T}, Ω::ΩMatrix{T}, B::AbstractVecOrMat{T}
 ) where {T}
     factorize!(Ω)
     copyto!(dest, B)
-    LAPACK.potrs!('L', Ω.factor, dest)
-    return dest
-end
-
-function LinearAlgebra.ldiv!(
-    dest::AbstractVector{T},
-    Ω::ΩMatrix{T},
-    b::AbstractVector{T},
-) where {T}
-    factorize!(Ω)
-    copyto!(dest, b)
     LAPACK.potrs!('L', Ω.factor, dest)
     return dest
 end
@@ -142,20 +130,20 @@ end
 Generated function to efficiently compute `dest` = (Σ[1]⊗V[1] + ... + Σ[K]⊗V[K]) x.
 Uses metaprogramming to unroll the loop over K variance components
 """
-@generated function _mul!(dest::AbstractVector{T}, 
-                          vc::VC, 
-                          x::AbstractVector{T}) where {T,VC<:Tuple}
+@generated function _mul!(
+    dest::AbstractVector{T}, vc::VC, x::AbstractVector{T}
+) where {T,VC<:Tuple}
     K = length(VC.parameters)
-    ops = [:(mul!(dest, vc[$i], x; alpha = one(T), beta = one(T))) for i in 1:K]
+    ops = [:(mul!(dest, vc[$i], x; alpha=one(T), beta=one(T))) for i in 1:K]
     quote
         $(ops...)
         return dest
     end
 end
 
-function LinearAlgebra.mul!(dest::AbstractVector{T}, 
-                            Ω::ΩMatrix{T}, 
-                            x::AbstractVector{T}) where {T}
+function LinearAlgebra.mul!(
+    dest::AbstractVector{T}, Ω::ΩMatrix{T}, x::AbstractVector{T}
+) where {T}
     fill!(dest, zero(T))
     _mul!(dest, Ω.varcomp, x)
     return dest
@@ -174,7 +162,7 @@ end
 """
     _logdet_tri(L::Matrix)
 
-Compute log determinant for triangular matrix `L`.
+Compute log determinant for a triangular matrix `L`.
 """
 function _logdet_tri(L::Matrix{T}) where {T}
     res = zero(T)
@@ -183,7 +171,3 @@ function _logdet_tri(L::Matrix{T}) where {T}
     end
     return res
 end
-
-
-
-

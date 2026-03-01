@@ -186,7 +186,6 @@ function loglikelihood!(model::MRVCModel{T}) where {T}
     return logl /= -2
 end
 
-
 """
     update_B!(model::MRVCModel)
 

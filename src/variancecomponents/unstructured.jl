@@ -66,6 +66,7 @@ end
 
 function materialize!(VC::Unstructured{T}) where {T}
     BLAS.syrk!('L', 'N', one(T), VC.L, zero(T), VC.Σ)
+    copytri!(VC.Σ, 'L')
     return nothing
 end
 
@@ -97,11 +98,12 @@ function update_Σ!(VC::Unstructured{T}, ::Val{:MM}; tol=T(1e-6)) where {T}
                                1, d, 
                                tol)
     for j in 1:d
+        vj = view(vecs, :, j)
         if vals[j] > 0
             quadroot::T = sqrt(sqrt(vals[j]))
-            view(vecs, :, j) .*= quadroot
+            vj .*= quadroot
         else
-            fill!(view(vecs, :, j), zero(T))
+            fill!(vj, zero(T))
         end
     end
     BLAS.syrk!('L', 'N', one(T), vecs, zero(T), Σ)

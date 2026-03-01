@@ -31,8 +31,6 @@ struct MRVCModel{T<:BlasReal,K,VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}
     # working arrays
     R::Matrix{T}                    # residuals
     Ωinv_R::Matrix{T}                 # Ωinv_R
-    xtx::Matrix{T}                  # Gram matrix XᵀX
-    xty::Matrix{T}                  # XᵀY
     storage_nd_1::Vector{T}
     storage_nd_2::Vector{T}
     storage_pd::Vector{T}
@@ -47,14 +45,17 @@ struct MRVCModel{T<:BlasReal,K,VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}
     storage_pd_pd::Matrix{T}
     storage_md²_md²::Matrix{T}
     logl::Vector{T}                 # log-likelihood
-
     # standard errors
     Bcov::Union{Nothing,Matrix{T}}
     Σcov::Union{Nothing,Matrix{T}}
-
-    # options
+    # constants
+    xtx::Matrix{T}                  # Gram matrix XᵀX
+    xty::Matrix{T}                  # XᵀY
     se::Bool
 end
+
+# Convenience alias
+const MultiResponseVarianceComponentModel = MRVCModel
 
 """
     MRVCModel(Y, X, V, Σ; Σ_rank=..., se=true)
@@ -151,12 +152,9 @@ function MRVCModel(
         Y,
         Xmat,
         B,
-        VarComp,
         Ω,
         R,
         Ωinv_R,
-        xtx,
-        xty,
         storage_nd_1,
         storage_nd_2,
         storage_pd,
@@ -173,6 +171,8 @@ function MRVCModel(
         logl,
         Bcov,
         Σcov,
+        xtx,
+        xty,
         se,
     )
 end
@@ -199,7 +199,7 @@ function MRVCModel(
 ) where {T<:BlasReal}
     d = size(Y, 2)
     K = length(V)
-    Σ_init = [Matrix{T}(I, d, d) for _ in 1:K]
+    Σ_init = [Matrix{T}(UniformScaling(1), d, d) for _ in 1:K]
     return MRVCModel(Y, X, V, Σ_init; kwargs...)
 end
 
@@ -257,9 +257,6 @@ function Base.show(io::IO, model::MRVCModel)
     print(io, "   * number of variance components: ")
     return printstyled(io, "$m"; color=:yellow)
 end
-
-# Convenience alias
-const MultiResponseVarianceComponentModel = MRVCModel
 
 # Utility functions
 """
