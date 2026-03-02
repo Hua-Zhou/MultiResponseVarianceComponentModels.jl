@@ -19,7 +19,9 @@ for common cases (especially K=2).
 - `se`: Whether to compute standard errors
 """
 
-struct MRVCModel{T<:BlasReal,K,VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}}} <: VCModel
+struct MRVCModel{
+    T<:BlasReal,K,VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}}
+} <: VCModel
     # data
     Y::Matrix{T}
     X::Matrix{T}
@@ -29,7 +31,7 @@ struct MRVCModel{T<:BlasReal,K,VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}
     Ω::ΩMatrix{T,K,VarCompTypes}
 
     # working arrays
-    R::Matrix{T}                    # residuals
+    R::Matrix{T}                      # residuals
     Ωinv_R::Matrix{T}                 # Ωinv_R
     storage_nd_1::Vector{T}
     storage_nd_2::Vector{T}
@@ -44,7 +46,7 @@ struct MRVCModel{T<:BlasReal,K,VarCompTypes<:Tuple{Vararg{VarCompStructure{T},K}
     storage_nd_nd::Matrix{T}
     storage_pd_pd::Matrix{T}
     storage_md²_md²::Matrix{T}
-    logl::Vector{T}                 # log-likelihood
+    logl::Ref{T}                 # log-likelihood
     # standard errors
     Bcov::Union{Nothing,Matrix{T}}
     Σcov::Union{Nothing,Matrix{T}}
@@ -81,12 +83,11 @@ function MRVCModel(
     V::Vector{Matrix{T}},
     Σ::Vector{Matrix{T}};
     Σ_rank::Vector{Int}=fill(size(Y, 2), length(V)),
-    se::Bool=true
+    se::Bool=true,
 ) where {T<:BlasReal}
     # define dimensions
     K = length(V)
-    n, d = size(Y)
-    p = size(Xmat, 2)
+    n, d, p = size(Y,1 ), size(Y,2), size(X, 2)
     nd, pd = n * d, p * d
 
     (size(X, 1) == n && all(size.(V, 1) .== n)) || throw(DimensionMismatch())
@@ -137,7 +138,7 @@ function MRVCModel(
     storage_nd_nd = Matrix{T}(undef, nd, nd)
     storage_pd_pd = Matrix{T}(undef, pd, pd)
     storage_md²_md² = Matrix{T}(undef, K * abs2(d), K * abs2(d))
-    logl = ones(T, 1)
+    logl = Ref{T}()
 
     if se == true
         Bcov = Matrix{T}(undef, pd, pd)
@@ -224,9 +225,9 @@ end
 
 # Display method
 function Base.show(io::IO, model::MRVCModel)
-    n, d, p, m = size(model.Y, 1),
+    n, d, p, K = size(model.Y, 1),
     size(model.Y, 2), size(model.X, 2),
-    length(model.VarComp)
+    length(model.Ω.varcomp)
 
     if d == 1
         printstyled(
@@ -255,7 +256,7 @@ function Base.show(io::IO, model::MRVCModel)
     print(io, "   * number of fixed effects: ")
     printstyled(io, "$p\n"; color=:yellow)
     print(io, "   * number of variance components: ")
-    return printstyled(io, "$m"; color=:yellow)
+    return printstyled(io, "$K"; color=:yellow)
 end
 
 # Utility functions

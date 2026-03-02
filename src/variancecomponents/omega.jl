@@ -24,6 +24,7 @@ struct ΩMatrix{T<:BlasReal,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
     # Factorization storage
     factor::Matrix{T}
     # state tracking (Ref for mutability in immutable struct)
+    evaluated::Ref{Bool}
     factorized::Ref{Bool}
     # Dimensions
     n::Int                   # sample size
@@ -53,7 +54,9 @@ function ΩMatrix(
     nd = n * d
     factor = Matrix{T}(undef, nd, nd)
     storage_n_d = Matrix{T}(undef, n, d)
-    return ΩMatrix{T,K,VC}(varcomp, factor, Ref(false), n, d, storage_n_d)
+    return ΩMatrix{T,K,VC}(
+        varcomp, factor, Ref(false), Ref(false), n, d, storage_n_d
+    )
 end
 
 # Helper functions to avoid [] syntax everywhere
@@ -61,12 +64,22 @@ end
 @inline set_factorized!(Ω::ΩMatrix{T}, val::Bool) where {T} =
     (Ω.factorized[] = val)
 
-"""
-    invalidate!(Ω::ΩMatrix)
+@inline is_evaluated(Ω::ΩMatrix{T}) where {T} = Ω.evaluated[]
+@inline set_evaluated!(Ω::ΩMatrix{T}, val::Bool) where {T} =
+    (Ω.evaluated[] = val)
 
-Flag factorization when a parameter changes value.
-"""
-invalidate!(Ω::ΩMatrix{T}) where {T} = set_factorized!(Ω, false)
+@generated function finalize!(vc::VC) where {VC<:Tuple}
+    K = length(VC.parameters)
+    updates = [:(finalize!(vc[$i])) for i in 1:K]
+    quote
+        $(updates...)
+    end
+end
+
+function finalize!(Ω::ΩMatrix{T}) where {T}
+    finalize!(Ω.varcomp)
+    return nothing
+end
 
 """
     _kron_sum!(dest::Matrix, vc::Tuple)
@@ -78,6 +91,25 @@ Uses metaprogramming to unroll the loop over K variance components
     K = length(VC.parameters)
     ops = [:(kron_axpy!(vc[$i].Σ, vc[$i].V, dest)) for i in 1:K]
     quote
+        $(Expr(:meta, :propagate_inbounds))
+        begin
+            $(ops...)
+        end
+        return dest
+    end
+end
+
+"""
+    ___materialize!(vc::Tuple)
+
+Unexported generated function to evaluate each Σ from variance component
+structures. Shouldn't ever need to be called if update_Σ! is implemented 
+correctly for each structure.
+"""
+@generated function ___materialize!(vc::VC) where {VC<:Tuple}
+    K = length(VC.parameters)
+    ops = [:(materialize!(vc[$i])) for i in 1:K]
+    quote
         $(ops...)
         return dest
     end
@@ -86,12 +118,20 @@ end
 """
     materialize!(dest::Matrix, Ω::ΩMatrix)
 
-Materialize Ω = Σ[1]⊗V[1] + ... + Σ[K]⊗V[K] into preallocated matrix `dest`.
+Materialize Ω = Σ[1]⊗V[1] + ... + Σ[K]⊗V[K] into preallocated matrix `dest`. 
 """
 function materialize!(dest::Matrix{T}, Ω::ΩMatrix{T}) where {T}
-    fill!(dest, zero(T))
-    _kron_sum!(dest, Ω.varcomp)
+    if is_evaluated(Ω) == false
+        fill!(dest, zero(T))
+        _kron_sum!(dest, Ω.varcomp)
+    end
     return dest
+end
+
+function materialize!(Ω::ΩMatrix{T}) where {T}
+    materialize!(Ω.factor, Ω)
+    # set_evaluated!(Ω, true)
+    return Ω.factor
 end
 
 """
@@ -101,14 +141,18 @@ Compute Cholesky factorization Ω = LLᵀ in-place, only if not already factoriz
 Returns Ω with updated factorization state.
 """
 function factorize!(Ω::ΩMatrix{T}) where {T}
-    if is_factorized(Ω) == false
-        materialize!(Ω.factor, Ω)
-        LAPACK.potrf!('L', Ω.factor)
-        set_factorized!(Ω, true)
+    if is_evaluated(Ω) == false
+        throw("Ω needs to be materialized before factorization")
+    else
+        # is_evaluated(Ω) == true
+        if is_factorized(Ω) == false
+            _, info = LAPACK.potrf!('L', Ω.factor)
+            info > 0 && throw(PosDefException(info))
+            set_factorized!(Ω, true)
+        end
     end
-    return Ω
+    return Ω.factor
 end
-
 
 """
     ldiv!(dest::Matrix, Ω::ΩMatrix, B::Matrix)
@@ -119,8 +163,7 @@ function LinearAlgebra.ldiv!(
     dest::AbstractVecOrMat{T}, Ω::ΩMatrix{T}, B::AbstractVecOrMat{T}
 ) where {T}
     factorize!(Ω)
-    copyto!(dest, B)
-    LAPACK.potrs!('L', Ω.factor, dest)
+    LAPACK.potrs!('L', Ω.factor, copyto!(dest, B))
     return dest
 end
 
@@ -134,8 +177,9 @@ Uses metaprogramming to unroll the loop over K variance components
     dest::AbstractVector{T}, vc::VC, x::AbstractVector{T}
 ) where {T,VC<:Tuple}
     K = length(VC.parameters)
-    ops = [:(mul!(dest, vc[$i], x; alpha=one(T), beta=one(T))) for i in 1:K]
+    ops = [:(mul!(dest, vc[$i], x, one(T), one(T))) for i in 1:K]
     quote
+        $(Expr(:meta, :propagate_inbounds))
         $(ops...)
         return dest
     end
@@ -154,9 +198,12 @@ end
 
 Compute log determinant of `Ω` by direct Cholesky factorization, modifying `Ω` in-place.
 """
-function logdet!(Ω::ΩMatrix{T}) where {T}
-    factorize!(Ω)
-    return _logdet_tri(Ω.factor) * 2
+function logdet(Ω::ΩMatrix{T}) where {T}
+    if is_factorized(Ω) == true
+        return _logdet_tri(Ω.factor) * 2
+    else
+        throw("Ω needs to be factorized to compute log determinant")
+    end
 end
 
 """
@@ -170,4 +217,37 @@ function _logdet_tri(L::Matrix{T}) where {T}
         res += log(L[i, i])
     end
     return res
+end
+
+@generated function update_M!(
+    vc::VC, Ωinv::AbstractMatrix{T}
+) where {T,VC<:Tuple}
+    K = length(VC.parameters)
+    ops = [:(update_M!(vc[$i], Ωinv)) for i in 1:K]
+    quote
+        $(ops...)
+    end
+end
+
+@generated function update_N!(
+    vc::VC, Ωinv_R::AbstractMatrix{T}
+) where {T,VC<:Tuple}
+    K = length(VC.parameters)
+    ops = [:(update_N!(vc[$i], Ωinv_R)) for i in 1:K]
+    quote
+        $(ops...)
+    end
+end
+
+@generated function update_Σ!(vc::VC, algo::Val) where {VC<:Tuple}
+    K = length(VC.parameters)
+    ops = [:(update_Σ!(vc[$i], algo)) for i in 1:K]
+    quote
+        $(ops...)
+    end
+end
+
+function update_Σ!(vc::Tuple; algo::Symbol=:MM)
+    update_Σ!(vc, Val(algo))
+    return nothing
 end

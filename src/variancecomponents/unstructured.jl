@@ -24,7 +24,7 @@ function Unstructured(Σ::Matrix{T}, V::Matrix{T}) where {T}
     LAPACK.potrf!('L', copyto!(L, Σ))
     tril!(L)
     pardim = ◺(d)
-    Σrank = rank(Σ)
+    Σrank = d
     # storage_nd_nd = Matrix{T}(undef, nd, nd)
     storage_nn = Matrix{T}(undef, n, n)
     storage_dd_1 = Matrix{T}(undef, d, d)
@@ -52,16 +52,15 @@ function Unstructured(d::Int, V::Matrix{T}) where {T}
     Unstructured(Σ, V)
 end
 
-function initialize!(VC::Unstructured{T}) where {T}
-    LAPACK.potrf!('L', copyto!(VC.L, VC.Σ))
+function initialize!(VC::Unstructured{T}, S::Matrix{T}) where {T}
+    _, info = LAPACK.potrf!('L', copyto!(VC.L, S))
+    info > 0 && throw(PosDefException(info))
     tril!(VC.L)
     return nothing
 end
 
-function initialize!(VC::Unstructured{T}, S::Matrix{T}) where {T}
-    LAPACK.potrf!('L', copyto!(VC.L, S))
-    tril!(VC.L)
-    return nothing
+function initialize!(VC::Unstructured{T}) where {T}
+    return initialize!(VC, VC.Σ)
 end
 
 function materialize!(VC::Unstructured{T}) where {T}
@@ -119,23 +118,30 @@ function update_Σ!(VC::Unstructured{T}, ::Val{:MM}; tol=T(1e-6)) where {T}
 end
 
 function update_Σ!(VC::Unstructured{T}, ::Val{:EM}) where {T}
-    d = size(VC, 1)
     L = VC.L
     Σ = VC.Σ
     M = VC.storage_dd_1
     N = VC.storage_dd_2
     C = VC.storage_dd_3
     C .= (N .- M) ./ VC.Σrank
-    mul!(M, C, Σ)
-    for j in 1:d
-        M[j, j] += 1
+    # show(stdout, "text/plain", C)
+    # println()
+    BLAS.symm!('R', 'L', one(T), Σ, C, zero(T), M)
+    # mul!(M, C, Σ)
+    for j in axes(M, 2)
+        M[j, j] += one(T)
     end
-    mul!(Σ, copyto!(N, Σ), M)
+    # mul!(Σ, copyto!(N, Σ), M)
+    BLAS.symm!('L', 'L', one(T), Σ, M, zero(T), C)
+    # show(stdout, "text/plain", C)
+    copyto!(Σ, C)
+    # copytri!(Σ, 'U')
     # Project to 𝕊
     transpose!(C, Σ)
     Σ .= (Σ .+ C) ./ 2
     # Solve for parameters L
-    LAPACK.potrf!('L', copyto!(L, Σ))
+    _, info = LAPACK.potrf!('L', copyto!(L, Σ))
+    info > 0 && throw(PosDefException(info))
     tril!(L)
     return Σ
 end

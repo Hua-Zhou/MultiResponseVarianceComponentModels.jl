@@ -42,7 +42,7 @@ end
         # Fill in upper triangle of Y
         for i in 1:j
             aij = A[i, j]
-            if !iszero(aij)
+            if iszero(aij) == false
                 yrowidx = ((i - 1) * p + 1):(i * p)
                 axpy!(aij, x_l, view(Y, yrowidx, ycolidx))
             end
