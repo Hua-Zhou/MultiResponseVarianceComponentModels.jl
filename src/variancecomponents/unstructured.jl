@@ -69,7 +69,7 @@ function materialize!(VC::Unstructured{T}) where {T}
     return nothing
 end
 
-function update_Σ!(VC::Unstructured{T}, ::Val{:MM}; tol=T(1e-6)) where {T}
+function update_Σ!(VC::Unstructured{T}, ::Val{:MM}; tol=T(1e-8)) where {T}
     d = size(VC, 1)
     L = VC.L
     Σ = VC.Σ
@@ -84,7 +84,7 @@ function update_Σ!(VC::Unstructured{T}, ::Val{:MM}; tol=T(1e-6)) where {T}
     # Assume N = R̃ᵀVR̃ where R̃ = vec⁻¹(Ωinv vec(R)) stored
     # C = LᵀΣNΣL
     # assume current estimate of Σ(n) is stored in `VC.Σ`
-    _update_ΣNΣ!(C, N, Σ, storage_dd)
+    _update_XYX!(C, N, Σ, storage_dd)
     BLAS.trmm!('L', 'L', 'T', 'N', one(T), L_M, C)
     BLAS.trmm!('R', 'L', 'N', 'N', one(T), L_M, C)
     # Need symmetric square root of C, C small so syevr! should be fine

@@ -145,13 +145,13 @@ function update_N!(VC::VarCompStructure{T}, Ωinv_R::AbstractMatrix{T}) where {T
     return update_N!(VC.storage_dd_2, VC, Ωinv_R, storage_n_d)
 end
 
-function _update_ΣNΣ!(
-    C::AbstractMatrix{T},
-    N::AbstractMatrix{T},
-    Σ::AbstractMatrix{T},
+function _update_XYX!(
+    XYX::AbstractMatrix{T},
+    Y::AbstractMatrix{T},
+    X::AbstractMatrix{T},
     storage_dd::AbstractMatrix{T},
 ) where {T}
-    BLAS.symm!('L', 'L', one(T), N, Σ, zero(T), storage_dd)
-    BLAS.symm!('L', 'L', one(T), Σ, storage_dd, zero(T), C)
-    return copytri!(C, 'L')
+    BLAS.symm!('L', 'L', one(T), Y, X, zero(T), storage_dd)
+    BLAS.symm!('L', 'L', one(T), X, storage_dd, zero(T), XYX)
+    return copytri!(XYX, 'L')
 end

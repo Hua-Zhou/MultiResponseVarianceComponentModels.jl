@@ -143,6 +143,60 @@ and is around twice as fast as `copytri!` on the full matrix.
 end
 
 """
+    sqrt!(M::AbstractMatrix{T}, 
+          λ::AbstractVector{T},
+          Q::AbstractMatrix{T},
+          sto::AbstractMatrix{T};
+          invsqrt::Bool=false,
+          eps::T=T(1e-8)
+          ) 
+          where {T}
+
+Symmetric square root of `Q diag(λ) Qᵀ`, writing the result in-place to `M`.
+"""
+function sqrt!(
+    M::AbstractMatrix{T},
+    Q::AbstractMatrix{T},
+    λ::AbstractVector{T},
+    sto::AbstractMatrix{T};
+    invsqrt::Bool=false,
+    eps::T=T(1e-8),
+) where {T}
+    # compute sqrt(M) = Q diag(sqrt(λ)) Qᵀ
+    @inbounds for j in axes(M, 2), i in axes(M, 1)
+        if invsqrt == false
+            sto[i, j] = Q[i, j] * sqrt(λ[j])
+        else
+            # if λ near zero, take the pseudo-inverse
+            sto[i, j] = λ[j] > eps ? Q[i, j] / sqrt(λ[j]) : zero(T)
+        end
+    end
+    mul!(M, sto, transpose(Q))
+    return M
+end
+
+"""
+    sqrt!() 
+
+convenience wrapper for sqrt! that performs the eigen-decomposition and
+    sqrt in one step. non-allocating.
+"""
+function sqrt!(
+    M::AbstractMatrix{T},
+    A::AbstractMatrix{T},
+    λ::AbstractVector{T},
+    sto::AbstractMatrix{T},
+    workspace::AbstractVector{T},
+    info::Ref{BlasInt};
+    invsqrt::Bool=false,
+    eps::T=T(1e-8)
+) where {T}
+    _syev!('V', 'L', A, λ, workspace, info)
+    info[] > 0 && throw(PosDefException(info[]))
+    return sqrt!(M, A, λ, sto; invsqrt=invsqrt, eps=eps)
+end
+
+"""
 
 """
 
