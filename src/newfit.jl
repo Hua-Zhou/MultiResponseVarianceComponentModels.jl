@@ -6,7 +6,7 @@ Fit a multivariate response variance components model by MM or EM algorithm.
 # Keyword arguments
 ```
 maxiter::Int        maximum number of iterations; default 1000
-reltol::Real        relative tolerance for convergence; default 1e-6
+reltol::Real        relative tolerance for convergence; default 1e-8
 verbose::Bool       display algorithmic information; default true
 init::Symbol        initialization strategy; :default initializes by least squares, while
     :user uses user-supplied values at model.B and model.Σ
@@ -22,7 +22,7 @@ convergence issues.
 function fit!(
     model::MRVCModel{T};
     maxiter::Int  = 1000,
-    reltol::T     = 1e-6,
+    reltol::T     = 1e-8,
     verbose::Bool = true,
     init::Symbol  = :default, # :default or :user
     algo::Symbol  = :MM,
@@ -30,7 +30,9 @@ function fit!(
 ) where {T}
     Y, X = model.Y, model.X
     # dimensions
-    n, d, p, m = size(Y, 1), size(Y, 2), size(X, 2), length(model.VarComp)
+    n, d, p = size(Y, 1), size(Y, 2), size(X, 2)
+    K = length(model.Ω.varcomp)
+
     @info "Running $algo algorithm for ML estimation"
     # record iterate history if requested
     history          = ConvergenceHistory(; partial=!log)
@@ -41,6 +43,7 @@ function fit!(
     # initialization
     tic = time()
     if init == :default
+        # Fixed Effects
         if p > 0
             # initial fixed effect coefficients B by ordinary least squares (Cholesky solve)
             copyto!(model.storage_p_p, model.xtx)
@@ -51,18 +54,18 @@ function fit!(
             update_residuals!(model)
         else
             # no fixed effects
-            copy!(model.R, Y)
+            copyto!(model.R, Y)
         end
-        # initialization of variance components Σ[1], ..., Σ[m]
+        # Variance Components Σ[1], ..., Σ[K]
         # if R is MatrixNormal(0, V[i], Σ[i]), i.e., vec(R) is Normal(0, Σ[i]⊗V[i]),
         # then E(R'R) = tr(V[i]) * Σ[i], so we estimate Σ[i] by R'R / tr(V[i])
         RtR = model.storage_d_d_1
         mul!(RtR, transpose(model.R), model.R, inv(n), zero(T))
-        for j in 1:m
-            Vj = model.VarComp[j].V
-            model.VarComp[j].Σ .= RtR * (n / (m * tr(Vj)))
-            initialize!(model.VarComp[j])
-        end
+        # for j in 1:K
+        #     Vj = model.VarComp[j].V
+        #     model.VarComp[j].Σ .= RtR * (n / (K * tr(Vj)))
+        #     initialize!(model.VarComp[j])
+        # end
     elseif init == :user
         if p > 0
             update_residuals!(model)
@@ -72,23 +75,10 @@ function fit!(
     else
         throw("Cannot recognize initialization method $init")
     end
+    set_evaluated!(model.Ω, false)
+    set_factorized!(model.Ω, false)
+    # Calculate Ω from initial values of B and Σ[1], ..., Σ[K]
     update_Ω!(model)
-    # if model.ymissing
-    #     # update conditional variance
-    #     C = model.storage_n_miss_n_miss_1
-    #     PΩPt = model.storage_nd_nd_miss
-    #     PΩPt .= @view model.Ω[model.P, model.P]
-    #     nd = size(model.Ω, 1)
-    #     n_obs = nd - model.n_miss    
-    #     sweep!(PΩPt, 1:n_obs)
-    #     copytri!(PΩPt, 'U')
-    #     copy!(model.storage_n_miss_n_obs_1, 
-    #         view(PΩPt, (n_obs + 1):nd, 1:n_obs)) # for conditional mean
-    #     copy!(model.storage_n_miss_n_miss_1, 
-    #         view(PΩPt, (n_obs + 1):nd, (n_obs + 1):nd)) # conditional variance
-    #     logl = NaN
-    # else
-    # end
     logl = loglikelihood!(model)
     toc = time()
     verbose && println("iter = 0, logl = $logl")
@@ -100,13 +90,20 @@ function fit!(
     for iter in 1:maxiter
         IterativeSolvers.nextiter!(history)
         tic = time()
-        # initial estiamte of Σ[i] can be lousy, so we update Σ[i] first in the 1st round
+        # initial estimate of Σ[i] can be lousy, 
+        # so we update Σ[i] first in the 1st round
         if p > 0 && iter > 1
             update_B!(model)
         end
+        update_residuals!(model)
         update_Σ!(model; algo=algo)
-        logl_prev = logl
-        logl = loglikelihood!(model)
+        set_evaluated!(model.Ω, false)
+        set_factorized!(model.Ω, false)
+        # update Ω and log-likelihood after updating Σ
+        update_Ω!(model)
+        logl_prev = model.logl[]
+        logl = loglikelihood!(model; calc_Ωinv=true)
+        logl_prev > logl && @warn "Log-likelihood decreased from $logl_prev to $logl"
         toc = time()
         verbose && println("iter = $iter, logl = $logl")
         push!(history, :iter, iter)
@@ -118,8 +115,8 @@ function fit!(
         end
         if abs(logl - logl_prev) < reltol * (abs(logl_prev) + 1)
             @info "Relative change in objective function is less than $reltol\n"
-            copyto!(model.logl, logl)
-            finalize!(model.VarComp)
+            model.logl[] = logl
+            finalize!(model.Ω)
             IterativeSolvers.setconv(history, true)
             # if model.se
             #     @info "Calculating standard errors"
@@ -146,44 +143,35 @@ function fit!(
     return history
 end
 
-@generated function finalize!(VarComps::VC) where {VC<:Tuple}
-    K = length(VC.parameters)
-    updates = [:(finalize!(VarComps[$i])) for i in 1:K]
-    quote
-        $(Expr(:meta, :propagate_inbounds))
-        begin
-            $(updates...)
-        end
-    end
-end
-
 """
     loglikelihood!(model::MRVCModel)
 
 Compute log-likelihood and store Ωinv in `model.storage_nd_nd`.
 Assume `model.R` is already updated according to `model.Σ` and `model.B`.
 """
-function loglikelihood!(model::MRVCModel{T}) where {T}
-    ΩL = model.Ω.factor
-    # materialize Ω and calculate its cholesky factor
+function loglikelihood!(model::MRVCModel{T}; calc_Ωinv::Bool=true) where {T}
+    nd = length(model.storage_nd_1)
+    # factorize Ω in-place to obtain Cholesky factor
     factorize!(model.Ω)
-    # copy cholesky factor to storage for inversion
-    copyto!(model.storage_nd_nd, ΩL)
-
-    # storage_nd = L \ vec(R)
+    # storage_nd_1 = L \ vec(R)
     copyto!(model.storage_nd_1, model.R)
-    BLAS.trsv!('L', 'N', 'N', ΩL, model.storage_nd_1)
-
+    BLAS.trsv!('L', 'N', 'N', model.Ω.factor, model.storage_nd_1)
     # assemble pieces for log-likelihood
-    logl = sum(abs2, model.storage_nd_1) + length(model.storage_nd_1) * log(2π)
-    @inbounds for i in 1:length(model.storage_nd_1)
-        logl += 2log(model.storage_nd_nd[i, i])
+    loglik = nd * log2π + logdet(model.Ω) + sum(abs2, model.storage_nd_1)
+    loglik /= -2
+    if calc_Ωinv == true
+        # Ωinv from lower Cholesky factor
+        copyto!(model.storage_nd_nd, model.Ω.factor)
+        LAPACK.potri!('L', model.storage_nd_nd)
+        copytri!(model.storage_nd_nd, 'L')
     end
+    return model.logl[] = loglik
+end
 
-    # Ωinv from lower Cholesky factor
-    LAPACK.potri!('L', model.storage_nd_nd)
-    copytri!(model.storage_nd_nd, 'L')
-    return logl /= -2
+function update_residuals!(model::MRVCModel{T}) where {T}
+    # update R = Y - XB
+    mul!(copyto!(model.R, model.Y), model.X, model.B, -one(T), one(T))
+    return model.R
 end
 
 """
@@ -192,12 +180,10 @@ end
 Update the regression coefficients `model.B`, assuming inverse of
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
-function update_B!(
-    model::MRVCModel{T}
-) where {T}
+function update_B!(model::MRVCModel{T}) where {T}
     Ωinv = model.storage_nd_nd
-    G   = model.storage_pd_pd
-    # Gram matrix G = (Id ⊗ X)' Ωinv(Id ⊗ X) = (X' Ωinvᵢⱼ X)ᵢⱼ, 1 ≤ i,j ≤ d
+    G    = model.storage_pd_pd
+    # Gram matrix G = (Id ⊗ X)' Ωinv (Id ⊗ X) = (X' Ωinvᵢⱼ X)ᵢⱼ, 1 ≤ i,j ≤ d
     n, d, p = size(model.Y, 1), size(model.Y, 2), size(model.X, 2)
     for j in 1:d
         Ωcidx = ((j - 1) * n + 1):(j * n)
@@ -205,15 +191,22 @@ function update_B!(
         for i in 1:j
             Ωridx = ((i - 1) * n + 1):(i * n)
             Gridx = ((i - 1) * p + 1):(i * p)
-            Ωinvᵢⱼ = view(Ωinv, Ωridx, Ωcidx)
-            Gᵢⱼ   = view(G, Gridx, Gcidx)
-            mul!(model.storage_n_p, Ωinvᵢⱼ, model.X)
-            mul!(Gᵢⱼ, transpose(model.X), model.storage_n_p)
+            Ωinv_ij = view(Ωinv, Ωridx, Ωcidx)
+            Gij     = view(G, Gridx, Gcidx)
+            mul!(model.storage_n_p, Ωinv_ij, model.X)
+            mul!(Gij, transpose(model.X), model.storage_n_p)
         end
     end
     copytri!(G, 'U')
-    # (Id⊗X')Ωinvvec(Y) = vec(X' * reshape(Ωinvvec(Y), n, d))
-    mul!(model.storage_nd_2, Ωinv, copyto!(model.storage_nd_1, model.Y))
+    # (Id ⊗ X') Ω \ vec(Y) = vec(X' * reshape(Ω \ vec(Y), n, d))
+    BLAS.symv!(
+        'L',
+        one(T),
+        Ωinv,
+        copyto!(model.storage_nd_1, model.Y),
+        zero(T),
+        model.storage_nd_2,
+    )
     copyto!(model.storage_n_d, model.storage_nd_2)
     mul!(model.storage_p_d, transpose(model.X), model.storage_n_d)
     # Cholesky solve
@@ -221,27 +214,19 @@ function update_B!(
     info > 0 && throw("Gram matrix (Id ⊗ X)ᵀ Ωinv (Id ⊗ X) is singular")
     copyto!(model.storage_pd, model.storage_p_d)
     LAPACK.potrs!('U', G, model.storage_pd)
-    copyto!(model.B, model.storage_pd)
-    # update residuals R
-    update_residuals!(model)
-    return model.B
-end
-
-
-
-function update_residuals!(model::MRVCModel{T}) where {T}
-    # update R = Y - XB
-    mul!(model.R, model.X, model.B, -one(T), one(T))
-    return model.R
+    return copyto!(model.B, model.storage_pd)
 end
 
 """
     update_Ω!(model::MRVCModel)
 
-Invalidate Ω factorization. Will be recomputed on next use.
+Evaluate the covariance matrix `model.Ω` based on the current variance component
+estimates in model.Ω.varcomp.Σ
 """
 function update_Ω!(model::MRVCModel{T}) where {T}
-    invalidate!(model.Ω)
+    materialize!(model.Ω)
+    set_evaluated!(model.Ω, true)
+    set_factorized!(model.Ω, false)
     return model.Ω
 end
 
@@ -253,18 +238,19 @@ covariance matrix `model.Ω` is available at `model.storage_nd_nd`. If
 missing response, assume conditional variance `model.storage_n_miss_n_miss_1`
 is precomputed.
 """
-function update_Σ!(
-    model::MRVCModel{T};
-    algo::Symbol=:MM,
-) where {T<:BlasReal}
+function update_Σ!(model::MRVCModel{T}; algo::Symbol=:MM) where {T<:BlasReal}
     d = size(model.Y, 2)
-    ΩL = model.Ω.factor
     Ωinv = model.storage_nd_nd
+    ΩL = model.Ω.factor
     # update Ωinv_R, assuming Ω.factor is the cholesky factor of Ω
     if is_factorized(model.Ω) == false
-        throw("Ω needs to be factorized before updating Σ")
+        throw("Ω needs to be factorized to update Σ")
     end
-    LAPACK.potrs!('L', ΩL, copyto!(model.Ωinv_R, model.R))
+    BLAS.symv!('L', one(T), 
+               Ωinv, copyto!(model.storage_nd_1, model.R), 
+               zero(T), model.storage_nd_2)
+    # LAPACK.potrs!('L', ΩL, copyto!(model.storage_nd_1, model.R))
+    copyto!(model.Ωinv_R, model.storage_nd_2)
     # if ymissing
     #     # compute ΩinvP'CPΩinv
     #     nd = size(Ωinv, 1)
@@ -287,12 +273,8 @@ function update_Σ!(
     #         transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
     #     copytri!(ΩinvPtCPΩinv, 'L')    
     # end
-    for k in eachindex(model.VarComp)
-        update_M!(model.VarComp[k], Ωinv)
-        update_N!(model.VarComp[k], model.Ωinv_R)
-        update_Σ!(model.VarComp[k], Val(algo))
-    end
-    return update_Ω!(model)
-    # model.Σ
+    update_M!(model.Ω.varcomp, Ωinv)
+    update_N!(model.Ω.varcomp, model.Ωinv_R)
+    update_Σ!(model.Ω.varcomp, Val(algo))
+    return nothing
 end
-
