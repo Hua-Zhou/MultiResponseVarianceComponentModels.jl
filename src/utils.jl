@@ -164,6 +164,7 @@ function sqrt!(
 ) where {T}
     # compute sqrt(M) = Q diag(sqrt(λ)) Qᵀ
     @inbounds for j in axes(M, 2), i in axes(M, 1)
+        λ[j] = max(λ[j], zero(T))  # ensure non-negativity
         if invsqrt == false
             sto[i, j] = Q[i, j] * sqrt(λ[j])
         else
