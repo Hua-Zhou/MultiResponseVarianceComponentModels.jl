@@ -56,16 +56,29 @@ function fit!(
             # no fixed effects
             copyto!(model.R, Y)
         end
-        # Variance Components Σ[1], ..., Σ[K]
-        # if R is MatrixNormal(0, V[i], Σ[i]), i.e., vec(R) is Normal(0, Σ[i]⊗V[i]),
-        # then E(R'R) = tr(V[i]) * Σ[i], so we estimate Σ[i] by R'R / tr(V[i])
-        RtR = model.storage_d_d_1
-        mul!(RtR, transpose(model.R), model.R, inv(n), zero(T))
-        # for j in 1:K
-        #     Vj = model.VarComp[j].V
-        #     model.VarComp[j].Σ .= RtR * (n / (K * tr(Vj)))
-        #     initialize!(model.VarComp[j])
-        # end
+        # Variance Components Σ[1], …, Σ[K]
+        M = Matrix{T}(undef, K, K)
+        vech_RtVR = Matrix{T}(undef, ◺(d), K)
+        VR = model.storage_n_d
+        RtVR = model.storage_d_d_1
+        for j in 1:K
+            BLAS.symm!('L', 'L', one(T), model.Ω.varcomp[j].V, model.R, zero(T), VR)
+            mul!(RtVR, transpose(model.R), VR)
+            vech!(view(vech_RtVR, :, j), RtVR)
+            for i in j:K
+                M[i, j] = dot(model.Ω.varcomp[i].V, model.Ω.varcomp[j].V)
+            end
+        end
+        LAPACK.potrf!('L', M)
+        BLAS.trsm!('R', 'L', 'T', 'N', one(T), M, vech_RtVR)
+        BLAS.trsm!('R', 'L', 'N', 'N', one(T), M, vech_RtVR)
+        for j in 1:K
+            unvech!(model.storage_d_d_1, view(vech_RtVR, :, j))
+            copytri!(model.storage_d_d_1, 'L')
+            λ, Q = eigen!(Symmetric(model.storage_d_d_1))
+            λ .= max.(λ, eps(T))
+            model.Ω.varcomp[j].Σ .= Q * Diagonal(λ) * transpose(Q)
+        end
     elseif init == :user
         if p > 0
             update_residuals!(model)
@@ -183,7 +196,7 @@ covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 function update_B!(model::MRVCModel{T}) where {T}
     Ωinv = model.storage_nd_nd
     G    = model.storage_pd_pd
-    # Gram matrix G = (Id ⊗ X)' Ωinv (Id ⊗ X) = (X' Ωinvᵢⱼ X)ᵢⱼ, 1 ≤ i,j ≤ d
+    # Gram matrix G = (Id ⊗ X)ᵀ Ωinv (Id ⊗ X) = (Xᵀ Ωinvᵢⱼ X)ᵢⱼ, 1 ≤ i,j ≤ d
     n, d, p = size(model.Y, 1), size(model.Y, 2), size(model.X, 2)
     for j in 1:d
         Ωcidx = ((j - 1) * n + 1):(j * n)
@@ -246,10 +259,10 @@ function update_Σ!(model::MRVCModel{T}; algo::Symbol=:MM) where {T<:BlasReal}
     if is_factorized(model.Ω) == false
         throw("Ω needs to be factorized to update Σ")
     end
+    # Ωinv_R is needed to update N = R̃ᵀVR̃, where R̃ = vec⁻¹(Ωinv vec(R))
     BLAS.symv!('L', one(T), 
                Ωinv, copyto!(model.storage_nd_1, model.R), 
                zero(T), model.storage_nd_2)
-    # LAPACK.potrs!('L', ΩL, copyto!(model.storage_nd_1, model.R))
     copyto!(model.Ωinv_R, model.storage_nd_2)
     # if ymissing
     #     # compute ΩinvP'CPΩinv
@@ -273,6 +286,8 @@ function update_Σ!(model::MRVCModel{T}; algo::Symbol=:MM) where {T<:BlasReal}
     #         transpose(model.storage_n_miss_n_miss_2), model.storage_n_miss_n_miss_3)
     #     copytri!(ΩinvPtCPΩinv, 'L')    
     # end
+    # Generated functions using meta-programming
+    # type of each variance component is known at compile time
     update_M!(model.Ω.varcomp, Ωinv)
     update_N!(model.Ω.varcomp, model.Ωinv_R)
     update_Σ!(model.Ω.varcomp, Val(algo))
