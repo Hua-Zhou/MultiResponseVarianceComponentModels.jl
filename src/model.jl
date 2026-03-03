@@ -54,6 +54,8 @@ struct MRVCModel{
     xtx::Matrix{T}                  # Gram matrix XᵀX
     xty::Matrix{T}                  # XᵀY
     se::Bool
+    # flags
+    reml::Bool
 end
 
 # Convenience alias
@@ -84,6 +86,7 @@ function MRVCModel(
     Σ::Vector{Matrix{T}};
     Σ_rank::Vector{Int}=fill(size(Y, 2), length(V)),
     se::Bool=true,
+    reml::Bool=false
 ) where {T<:BlasReal}
     # define dimensions
     K = length(V)
@@ -175,6 +178,7 @@ function MRVCModel(
         xtx,
         xty,
         se,
+        reml,
     )
 end
 

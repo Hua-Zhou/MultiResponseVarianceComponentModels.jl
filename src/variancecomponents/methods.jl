@@ -151,7 +151,7 @@ function _update_XYX!(
     X::AbstractMatrix{T},
     storage_dd::AbstractMatrix{T},
 ) where {T}
-    BLAS.symm!('L', 'L', one(T), Y, X, zero(T), storage_dd)
+    BLAS.symm!('R', 'L', one(T), X, Y, zero(T), storage_dd)
     BLAS.symm!('L', 'L', one(T), X, storage_dd, zero(T), XYX)
     return copytri!(XYX, 'L')
 end

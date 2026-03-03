@@ -174,11 +174,11 @@ end
         Ψnew[i] = sqrt(N[i, i] / M[i, i]) * Ψ[i]
         if Ψnew[i] < eps
             rankedness -= 1
-            Ψnew[i] = eps
+            # Ψnew[i] = eps
         end
     end
     if rankedness < rank_lower_bound
-        @debug "Ψ update has fewer than $(rank_lower_bound) elements greater than $(eps), skipping update for Ψ"
+        @warn "Ψ update has fewer than $(rank_lower_bound) elements greater than $(eps), skipping update for Ψ"
     else
         copyto!(Ψ, Ψnew)
     end

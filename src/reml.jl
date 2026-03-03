@@ -1,24 +1,32 @@
-function project_null(
-    Y :: AbstractVecOrMat{T},
-    X :: AbstractVecOrMat{T},
-    V :: Vector{<:AbstractMatrix{T}}
-    ) where {T <: Real}
-    n, p, m = size(X, 1), size(X, 2), length(V)
+
+
+function project_null!(
+    model::MRVCModel{T},
+    ) where {T}
+    K = length(model.Ω.varcomp)
+    Y = model.Y
+    X = model.X
+    n, p = size(X)
+    # initial fixed effect coefficients B by ordinary least squares (Cholesky solve)
+    L = copyto!(model.storage_p_p, model.xtx)
+    _, info = LAPACK.potrf!('L', model.storage_p_p)
+    info > 0 && throw(PosDefException(info))
     if isempty(X)
-        Y, V, Matrix{T}(I, n, n)
+        nothing
     else
-        # basis of N(Xᵗ)
-        Xᵗ = Matrix{T}(undef, size(X, 2), size(X, 1))
-        transpose!(Xᵗ, X)
-        A = nullspace(Xᵗ)
-        s = size(A, 2) 
-        Ỹ = transpose(A) * Y
-        Ṽ = Vector{Matrix{T}}(undef, m)
-        storage = zeros(n, s)
-        for i in 1:m
-            mul!(storage, V[i], A)
-            Ṽ[i] = BLAS.gemm('T', 'N', A, storage)
+        LAPACK.potrs!('L', L, copyto!(model.storage_p_d, model.xty))
+        Yperp = copyto!(model.storage_n_d, Y)
+        mul!(Yperp, X, model.storage_p_d, -one(T), one(T))
+        copyto!(model.Y, Yperp)
+        for i in 1:K
+            Vi = model.Ω.varcomp[i].V
+            B = X \ Vi
+            Vperp = copyto!(model.Ω.varcomp[i].storage_nn, Vi)
+            mul!(Vperp, X, B, -one(T), one(T))
+            B = X \ transpose(Vperp)
+            mul!(Vperp, transpose(B), transpose(X), -one(T), one(T))
+            copyto!(model.Ω.varcomp[i].V, Vperp)
         end
-        Ỹ, Ṽ, A
     end
+    return nothing
 end
