@@ -47,7 +47,10 @@ export VCModel,
     vech,
     ◺,
     duplication,
-    commutation
+    commutation,
+    Unstructured,
+    LowRankPlusDiagonal,
+    mul!
 
 abstract type VCModel end
 
@@ -62,7 +65,7 @@ include("model.jl")               # NEW: Replaces MRVCModel.jl and SimpleMRVCMod
 # include("MRTVCModel.jl")        # OLD: Deprecated, K=2 handled in model.jl
 include("reml.jl")
 # include("fit.jl")               # OLD: For old MRVCModel
-include("newfit.jl")           # Rewritten for new MRVCModel 
+include("newfit.jl")              # Rewritten for new MRVCModel 
 include("inference.jl")           # Rewritten for new MRVCModel 
 # include("eigen.jl")             # OLD: For MRTVCModel only, TODO: add K=2 methods
 # include("manopt.jl")            # OLD: Manifold optimization (performance issues)
