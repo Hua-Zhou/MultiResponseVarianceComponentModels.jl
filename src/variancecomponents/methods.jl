@@ -49,21 +49,21 @@ function LinearAlgebra.mul!(
     dest::AbstractVector{T},
     VC::VarCompStructure{T},
     b::AbstractVector{T},
-    alpha::T,
-    beta::T,
+    alpha::Number,
+    beta::Number,
 ) where {T}
     d = size(VC.Σ, 1)
     # Note (Σ ⊗ V) b = vec(V B Σ) where b = vec(B) and B is n by d
-    storage_nd_1 = view(VC.storage_nn, :, 1:d)
-    storage_nd_2 = view(VC.storage_nn, :, (d + 1):(2d))
+    storage_n_d_1 = view(VC.storage_nn, :, 1:d)
+    storage_n_d_2 = view(VC.storage_nn, :, (d + 1):(2d))
     BLAS.symm!(
-        'L', 'L', one(T), VC.V, copyto!(storage_nd_1, b), zero(T), storage_nd_2
+        'L', 'L', one(T), VC.V, copyto!(storage_n_d_1, b), zero(T), storage_n_d_2
     )
-    # overwrite storage_nd_1 with current value of dest
+    # overwrite storage_n_ d_1 with current value of dest
     # α * vec(V B Σ) * β * dest
-    iszero(beta) ? copyto!(storage_nd_1, dest) : nothing
-    BLAS.symm!('L', 'R', alpha, VC.Σ, storage_nd_2, beta, storage_nd_1)
-    return copyto!(dest, storage_nd_1)
+    !iszero(beta) && copyto!(storage_n_d_1, dest)
+    BLAS.symm!('R', 'L', T(alpha), VC.Σ, storage_n_d_2, T(beta), storage_n_d_1)
+    return copyto!(dest, storage_n_d_1)
 end
 
 # should be the most efficent method for n >> d
@@ -72,14 +72,14 @@ function LinearAlgebra.mul!(
     dest::AbstractMatrix{T},
     VC::VarCompStructure{T},
     B::AbstractMatrix{T},
-    alpha::T,
-    beta::T,
+    alpha::Number,
+    beta::Number,
 ) where {T}
     n = size(VC.V, 1)
     d = size(VC.Σ, 1)
     p = size(B, 2)
     dp = d * p
-    # B is nd by p, we reshape it to n by dp, then apply the same logic as the 
+    # B is nd by p, we reshape it to n by dp, then apply the same logic as the
     # vector case, then reshape to np by d, and right multiply by Σ
     storage_n_dp_1 = copyto!(view(VC.storage_nn, :, 1:dp), B)
     storage_n_dp_2 = view(VC.storage_nn, :, (dp + 1):(2dp))
@@ -87,11 +87,11 @@ function LinearAlgebra.mul!(
     # Blockwise reshape
     for k in 1:p
         colidx_1   = ((k - 1) * d + 1):(k * d)
-        colidx_2   = (dp + (k - 1) * d + 1):(2dp)
+        colidx_2   = (dp + (k - 1) * d + 1):(dp + k * d)
         storage_nd = view(VC.storage_nn, :, colidx_1)
         V_Bk       = view(VC.storage_nn, :, colidx_2)
-        iszero(beta) ? copyto!(storage_nd, view(dest, :, k)) : nothing
-        BLAS.symm!('L', 'R', alpha, VC.Σ, V_Bk, beta, storage_nd)
+        !iszero(beta) && copyto!(storage_nd, view(dest, :, k))
+        BLAS.symm!('R', 'L', T(alpha), VC.Σ, V_Bk, T(beta), storage_nd)
         copyto!(view(dest, :, k), storage_nd)
     end
     return dest
@@ -102,6 +102,7 @@ function LinearAlgebra.mul!(
 ) where {T}
     return mul!(dest, VC, b, one(T), zero(T))
 end
+
 
 """
     update_M!(M::AbstractMatrix{T}, VC::VarCompStructure{T}, Ωinv::AbstractMatrix{T})
