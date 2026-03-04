@@ -6,6 +6,7 @@ maximum likelihood (REML) estimation and inference.
 module MultiResponseVarianceComponentModels
 
 using LinearAlgebra
+using Random
 using StatsBase
 using StatsFuns
 using Distributions
@@ -50,7 +51,8 @@ export VCModel,
     commutation,
     Unstructured,
     LowRankPlusDiagonal,
-    mul!
+    mul!,
+    slq_logdet
 
 abstract type VCModel end
 
@@ -60,6 +62,7 @@ include("variancecomponents/methods.jl")
 include("variancecomponents/unstructured.jl")
 include("variancecomponents/lowrankplusdiagonal.jl")
 include("variancecomponents/omega.jl")              # NEW: ΩMatrix type
+include("slq.jl")
 include("model.jl")               # NEW: Replaces MRVCModel.jl and SimpleMRVCModel.jl
 # include("MRVCModel.jl")         # OLD: Deprecated
 # include("MRTVCModel.jl")        # OLD: Deprecated, K=2 handled in model.jl
