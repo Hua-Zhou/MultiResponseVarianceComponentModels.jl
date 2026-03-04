@@ -3,7 +3,7 @@
 function project_null!(
     model::MRVCModel{T},
     ) where {T}
-    K = length(model.Ω.varcomp)
+    K = length(model.Ω.VarComp)
     Y = model.Y
     X = model.X
     n, p = size(X)
@@ -19,13 +19,13 @@ function project_null!(
         mul!(Yperp, X, model.storage_p_d, -one(T), one(T))
         copyto!(model.Y, Yperp)
         for i in 1:K
-            Vi = model.Ω.varcomp[i].V
+            Vi = model.Ω.VarComp[i].V
             B = X \ Vi
-            Vperp = copyto!(model.Ω.varcomp[i].storage_nn, Vi)
+            Vperp = copyto!(model.Ω.VarComp[i].storage_nn, Vi)
             mul!(Vperp, X, B, -one(T), one(T))
             B = X \ transpose(Vperp)
             mul!(Vperp, transpose(B), transpose(X), -one(T), one(T))
-            copyto!(model.Ω.varcomp[i].V, Vperp)
+            copyto!(model.Ω.VarComp[i].V, Vperp)
         end
     end
     return nothing

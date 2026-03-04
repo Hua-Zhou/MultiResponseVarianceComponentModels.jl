@@ -218,10 +218,10 @@ for Σ and V, while internally using Tuple storage.
 function Base.getproperty(model::MRVCModel, name::Symbol)
     if name === :Σ
         # Return Vector of Σ matrices for backward compatibility
-        return [vc.Σ for vc in getfield(model, :VarComp)]
+        return [vc.Σ for vc in getfield(model.Ω, :VarComp)]
     elseif name === :V
         # Return Vector of V matrices for backward compatibility
-        return [vc.V for vc in getfield(model, :VarComp)]
+        return [vc.V for vc in getfield(model.Ω, :VarComp)]
     else
         return getfield(model, name)
     end
@@ -231,7 +231,7 @@ end
 function Base.show(io::IO, model::MRVCModel)
     n, d, p, K = size(model.Y, 1),
     size(model.Y, 2), size(model.X, 2),
-    length(model.Ω.varcomp)
+    length(model.Ω.VarComp)
 
     if d == 1
         printstyled(

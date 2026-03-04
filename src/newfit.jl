@@ -28,10 +28,14 @@ function fit!(
     algo::Symbol  = :MM,
     log::Bool     = false,
 ) where {T}
+    K = length(model.Ω.VarComp)
     Y, X = model.Y, model.X
     # dimensions
     n, d, p = size(Y, 1), size(Y, 2), size(X, 2)
-    K = length(model.Ω.varcomp)
+    if model.reml == true
+        project_null!(model)
+        p = 0
+    end
 
     @info "Running $algo algorithm for ML estimation"
     # record iterate history if requested
@@ -62,11 +66,13 @@ function fit!(
         VR = model.storage_n_d
         RtVR = model.storage_d_d_1
         for j in 1:K
-            BLAS.symm!('L', 'L', one(T), model.Ω.varcomp[j].V, model.R, zero(T), VR)
+            BLAS.symm!(
+                'L', 'L', one(T), model.Ω.VarComp[j].V, model.R, zero(T), VR
+            )
             mul!(RtVR, transpose(model.R), VR)
             vech!(view(vech_RtVR, :, j), RtVR)
             for i in j:K
-                M[i, j] = dot(model.Ω.varcomp[i].V, model.Ω.varcomp[j].V)
+                M[i, j] = dot(model.Ω.VarComp[i].V, model.Ω.VarComp[j].V)
             end
         end
         LAPACK.potrf!('L', M)
@@ -77,7 +83,7 @@ function fit!(
             copytri!(model.storage_d_d_1, 'L')
             λ, Q = eigen!(Symmetric(model.storage_d_d_1))
             λ .= max.(λ, eps(T))
-            model.Ω.varcomp[j].Σ .= Q * Diagonal(λ) * transpose(Q)
+            model.Ω.VarComp[j].Σ .= Q * Diagonal(λ) * transpose(Q)
         end
     elseif init == :user
         if p > 0
@@ -116,7 +122,8 @@ function fit!(
         update_Ω!(model)
         logl_prev = model.logl[]
         logl = loglikelihood!(model; calc_Ωinv=true)
-        logl_prev > logl && @warn "Log-likelihood decreased from $logl_prev to $logl"
+        logl_prev > logl &&
+            @debug "Log-likelihood decreased from $logl_prev to $logl"
         toc = time()
         verbose && println("iter = $iter, logl = $logl")
         push!(history, :iter, iter)
@@ -182,9 +189,13 @@ function loglikelihood!(model::MRVCModel{T}; calc_Ωinv::Bool=true) where {T}
 end
 
 function update_residuals!(model::MRVCModel{T}) where {T}
-    # update R = Y - XB
-    mul!(copyto!(model.R, model.Y), model.X, model.B, -one(T), one(T))
-    return model.R
+    if model.reml == true
+        return nothing
+    else
+        # update R = Y - XB
+        mul!(copyto!(model.R, model.Y), model.X, model.B, -one(T), one(T))
+        return model.R
+    end
 end
 
 """
@@ -194,47 +205,51 @@ Update the regression coefficients `model.B`, assuming inverse of
 covariance matrix `model.Ω` is available at `model.storage_nd_nd`.
 """
 function update_B!(model::MRVCModel{T}) where {T}
-    Ωinv = model.storage_nd_nd
-    G    = model.storage_pd_pd
-    # Gram matrix G = (Id ⊗ X)ᵀ Ωinv (Id ⊗ X) = (Xᵀ Ωinvᵢⱼ X)ᵢⱼ, 1 ≤ i,j ≤ d
-    n, d, p = size(model.Y, 1), size(model.Y, 2), size(model.X, 2)
-    for j in 1:d
-        Ωcidx = ((j - 1) * n + 1):(j * n)
-        Gcidx = ((j - 1) * p + 1):(j * p)
-        for i in 1:j
-            Ωridx = ((i - 1) * n + 1):(i * n)
-            Gridx = ((i - 1) * p + 1):(i * p)
-            Ωinv_ij = view(Ωinv, Ωridx, Ωcidx)
-            Gij     = view(G, Gridx, Gcidx)
-            mul!(model.storage_n_p, Ωinv_ij, model.X)
-            mul!(Gij, transpose(model.X), model.storage_n_p)
+    if model.reml == true
+        return nothing
+    else
+        Ωinv = model.storage_nd_nd
+        G    = model.storage_pd_pd
+        # Gram matrix G = (Id ⊗ X)ᵀ Ωinv (Id ⊗ X) = (Xᵀ Ωinvᵢⱼ X)ᵢⱼ, 1 ≤ i,j ≤ d
+        n, d, p = size(model.Y, 1), size(model.Y, 2), size(model.X, 2)
+        for j in 1:d
+            Ωcidx = ((j - 1) * n + 1):(j * n)
+            Gcidx = ((j - 1) * p + 1):(j * p)
+            for i in 1:j
+                Ωridx   = ((i - 1) * n + 1):(i * n)
+                Gridx   = ((i - 1) * p + 1):(i * p)
+                Ωinv_ij = view(Ωinv, Ωridx, Ωcidx)
+                Gij     = view(G, Gridx, Gcidx)
+                mul!(model.storage_n_p, Ωinv_ij, model.X)
+                mul!(Gij, transpose(model.X), model.storage_n_p)
+            end
         end
+        copytri!(G, 'U')
+        # (Id ⊗ X') Ω \ vec(Y) = vec(X' * reshape(Ω \ vec(Y), n, d))
+        BLAS.symv!(
+            'L',
+            one(T),
+            Ωinv,
+            copyto!(model.storage_nd_1, model.Y),
+            zero(T),
+            model.storage_nd_2,
+        )
+        copyto!(model.storage_n_d, model.storage_nd_2)
+        mul!(model.storage_p_d, transpose(model.X), model.storage_n_d)
+        # Cholesky solve
+        _, info = LAPACK.potrf!('U', G)
+        info > 0 && throw("Gram matrix (Id ⊗ X)ᵀ Ωinv (Id ⊗ X) is singular")
+        copyto!(model.storage_pd, model.storage_p_d)
+        LAPACK.potrs!('U', G, model.storage_pd)
+        return copyto!(model.B, model.storage_pd)
     end
-    copytri!(G, 'U')
-    # (Id ⊗ X') Ω \ vec(Y) = vec(X' * reshape(Ω \ vec(Y), n, d))
-    BLAS.symv!(
-        'L',
-        one(T),
-        Ωinv,
-        copyto!(model.storage_nd_1, model.Y),
-        zero(T),
-        model.storage_nd_2,
-    )
-    copyto!(model.storage_n_d, model.storage_nd_2)
-    mul!(model.storage_p_d, transpose(model.X), model.storage_n_d)
-    # Cholesky solve
-    _, info = LAPACK.potrf!('U', G)
-    info > 0 && throw("Gram matrix (Id ⊗ X)ᵀ Ωinv (Id ⊗ X) is singular")
-    copyto!(model.storage_pd, model.storage_p_d)
-    LAPACK.potrs!('U', G, model.storage_pd)
-    return copyto!(model.B, model.storage_pd)
 end
 
 """
     update_Ω!(model::MRVCModel)
 
 Evaluate the covariance matrix `model.Ω` based on the current variance component
-estimates in model.Ω.varcomp.Σ
+estimates in model.Ω.VarComp.Σ
 """
 function update_Ω!(model::MRVCModel{T}) where {T}
     materialize!(model.Ω)
@@ -260,9 +275,14 @@ function update_Σ!(model::MRVCModel{T}; algo::Symbol=:MM) where {T<:BlasReal}
         throw("Ω needs to be factorized to update Σ")
     end
     # Ωinv_R is needed to update N = R̃ᵀVR̃, where R̃ = vec⁻¹(Ωinv vec(R))
-    BLAS.symv!('L', one(T), 
-               Ωinv, copyto!(model.storage_nd_1, model.R), 
-               zero(T), model.storage_nd_2)
+    BLAS.symv!(
+        'L',
+        one(T),
+        Ωinv,
+        copyto!(model.storage_nd_1, model.R),
+        zero(T),
+        model.storage_nd_2,
+    )
     copyto!(model.Ωinv_R, model.storage_nd_2)
     # if ymissing
     #     # compute ΩinvP'CPΩinv
@@ -288,8 +308,8 @@ function update_Σ!(model::MRVCModel{T}; algo::Symbol=:MM) where {T<:BlasReal}
     # end
     # Generated functions using meta-programming
     # type of each variance component is known at compile time
-    update_M!(model.Ω.varcomp, Ωinv)
-    update_N!(model.Ω.varcomp, model.Ωinv_R)
-    update_Σ!(model.Ω.varcomp, Val(algo))
+    update_M!(model.Ω.VarComp, Ωinv)
+    update_N!(model.Ω.VarComp, model.Ωinv_R)
+    update_Σ!(model.Ω.VarComp, Val(algo))
     return nothing
 end

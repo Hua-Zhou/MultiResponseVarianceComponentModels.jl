@@ -10,7 +10,7 @@ Types:
 - VC: tuple type of variance component structures
 
 Fields:
-- `varcomp`: tuple of variance component structures (holding Σ and V)
+- `VarComp`: tuple of variance component structures (holding Σ and V)
 - `factor`: pre-allocated matrix for Cholesky factor or full Ω
 - `factorized`: Ref{Bool} to track if factorization is up to date
 - `n`: sample size (dimension of V)
@@ -20,7 +20,7 @@ Fields:
 """
 struct ΩMatrix{T<:BlasReal,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
     # Tuple of variance components (holds Σ[i] and V[i] for i=1..K)
-    varcomp::VC
+    VarComp::VC
     # Factorization storage
     factor::Matrix{T}
     # state tracking (Ref for mutability in immutable struct)
@@ -38,7 +38,7 @@ Base.size(Ω::ΩMatrix{T}) where {T} = (Ω.n * Ω.d, Ω.n * Ω.d)
 Base.eltype(::ΩMatrix{T}) where {T} = T
 
 """
-    ΩMatrix(varcomp::Tuple{Vararg{VarCompStructure{T}, K}})
+    ΩMatrix(VarComp::Tuple{Vararg{VarCompStructure{T}, K}})
 
 Construct lazy Ω matrix from tuple of variance component structures.
 
@@ -47,15 +47,15 @@ Construct lazy Ω matrix from tuple of variance component structures.
 - VC: tuple type of variance component structures
 """
 function ΩMatrix(
-    varcomp::VC
+    VarComp::VC
 ) where {T,K,VC<:Tuple{Vararg{VarCompStructure{T},K}}}
-    n = size(first(varcomp).V, 1)
-    d = size(first(varcomp).Σ, 1)
+    n = size(first(VarComp).V, 1)
+    d = size(first(VarComp).Σ, 1)
     nd = n * d
     factor = Matrix{T}(undef, nd, nd)
     storage_n_d = Matrix{T}(undef, n, d)
     return ΩMatrix{T,K,VC}(
-        varcomp, factor, Ref(false), Ref(false), n, d, storage_n_d
+        VarComp, factor, Ref(false), Ref(false), n, d, storage_n_d
     )
 end
 
@@ -77,7 +77,7 @@ end
 end
 
 function finalize!(Ω::ΩMatrix{T}) where {T}
-    finalize!(Ω.varcomp)
+    finalize!(Ω.VarComp)
     return nothing
 end
 
@@ -123,7 +123,7 @@ Materialize Ω = Σ[1]⊗V[1] + ... + Σ[K]⊗V[K] into preallocated matrix `des
 function materialize!(dest::Matrix{T}, Ω::ΩMatrix{T}) where {T}
     if is_evaluated(Ω) == false
         fill!(dest, zero(T))
-        _kron_sum!(dest, Ω.varcomp)
+        _kron_sum!(dest, Ω.VarComp)
     end
     return dest
 end
@@ -189,7 +189,7 @@ function LinearAlgebra.mul!(
     dest::AbstractVector{T}, Ω::ΩMatrix{T}, x::AbstractVector{T}
 ) where {T}
     fill!(dest, zero(T))
-    _mul!(dest, Ω.varcomp, x)
+    _mul!(dest, Ω.VarComp, x)
     return dest
 end
 
