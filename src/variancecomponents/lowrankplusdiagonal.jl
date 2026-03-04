@@ -102,6 +102,33 @@ function LowRankPlusDiagonal(
     return LowRankPlusDiagonal(F, dg, V)
 end
 
+function LinearAlgebra.mul!(
+    dest::AbstractVector{T},
+    VC::LowRankPlusDiagonal{T},
+    b::AbstractVector{T},
+    alpha::Number,
+    beta::Number,
+) where {T}
+    d, r = size(VC.F)
+    # Note (Σ ⊗ V) b = vec(V B Σ) where b = vec(B) and B is n by d
+    storage_n_d_1 = view(VC.storage_nn, :, 1:d)
+    VB            = view(VC.storage_nn, :, (d + 1):(2d))
+    storage_n_r   = view(VC.storage_nn, :, (2d + 1):(2d + r))
+    BLAS.symm!(
+        'L', 'L', one(T), VC.V, copyto!(storage_n_d_1, b), zero(T), VB
+    )
+    # overwrite storage_nd_1 with current value of dest
+    # α * vec(V B Σ) * β * dest
+    !iszero(beta) && copyto!(storage_n_d_1, dest)
+    for j in 1:d
+        axpby!(VC.Ψ[j], view(VB, :, j), T(beta), view(storage_n_d_1, :, j))
+    end
+    # mul!(storage_n_d_1, VB, Diagonal(VC.Ψ), T(alpha), T(beta))
+    mul!(storage_n_r, VB, VC.F, T(alpha), zero(T))
+    mul!(storage_n_d_1, storage_n_r, transpose(VC.F), one(T), one(T))
+    return copyto!(dest, storage_n_d_1)
+end
+
 # initialize F and Ψ with best low-rank plus diagonal approximation to S
 function initialize!(
     VC::LowRankPlusDiagonal{T}, S::Matrix{T}; eps::T=T(1e-8)
