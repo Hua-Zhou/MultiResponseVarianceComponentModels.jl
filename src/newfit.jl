@@ -52,7 +52,7 @@ function fit!(
             # initial fixed effect coefficients B by ordinary least squares (Cholesky solve)
             copyto!(model.storage_p_p, model.xtx)
             _, info = LAPACK.potrf!('U', model.storage_p_p)
-            info > 0 && throw("Design matrix X is rank deficient")
+            info > 0 && throw(PosDefException("XᵀX is singular."))
             LAPACK.potrs!('U', model.storage_p_p, copyto!(model.B, model.xty))
             # update residuals R
             update_residuals!(model)
@@ -81,10 +81,11 @@ function fit!(
         for j in 1:K
             unvech!(model.storage_d_d_1, view(vech_RtVR, :, j))
             copytri!(model.storage_d_d_1, 'L')
-            λ, Q = eigen!(Symmetric(model.storage_d_d_1))
-            λ .= max.(λ, eps(T))
+            λ, Q = eigen(Symmetric(model.storage_d_d_1, :L))
+            λ[λ .< reltol] .= reltol
             model.Ω.VarComp[j].Σ .= Q * Diagonal(λ) * transpose(Q)
         end
+        initialize!(model.Ω.VarComp)
     elseif init == :user
         if p > 0
             update_residuals!(model)
@@ -123,7 +124,7 @@ function fit!(
         logl_prev = model.logl[]
         logl = loglikelihood!(model; calc_Ωinv=true)
         logl_prev > logl &&
-            @debug "Log-likelihood decreased from $logl_prev to $logl"
+            @error "Log-likelihood decreased from $logl_prev to $logl"
         toc = time()
         verbose && println("iter = $iter, logl = $logl")
         push!(history, :iter, iter)

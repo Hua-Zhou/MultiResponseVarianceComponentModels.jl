@@ -52,7 +52,10 @@ function Unstructured(d::Int, V::Matrix{T}) where {T}
     Unstructured(Σ, V)
 end
 
-function initialize!(VC::Unstructured{T}, S::Matrix{T}) where {T}
+function initialize!(VC::Unstructured{T}, S::Matrix{T}; tol::T=T(1e-8)) where {T}
+    λ, Q = LAPACK.syev!('V', 'L', S)
+    λ[λ .< tol] .= tol
+    S .= Q * Diagonal(λ) * transpose(Q)
     _, info = LAPACK.potrf!('L', copyto!(VC.L, S))
     info > 0 && throw(PosDefException(info))
     tril!(VC.L)

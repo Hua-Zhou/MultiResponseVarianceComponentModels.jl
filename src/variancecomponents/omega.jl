@@ -219,6 +219,14 @@ function _logdet_tri(L::Matrix{T}) where {T}
     return res
 end
 
+@generated function initialize!(vc::VC) where {VC<:Tuple}
+    K = length(VC.parameters)
+    ops = [:(initialize!(vc[$i])) for i in 1:K]
+    quote
+        $(ops...)
+    end
+end
+
 @generated function update_M!(
     vc::VC, Ωinv::AbstractMatrix{T}
 ) where {T,VC<:Tuple}
