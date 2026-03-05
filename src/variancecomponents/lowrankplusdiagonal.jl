@@ -208,7 +208,7 @@ end
         end
     end
     if rankedness < rank_lower_bound
-        @warn "Ψ update has fewer than $(rank_lower_bound) elements greater than $(eps), skipping update for Ψ"
+        @debug "Ψ update has fewer than $(rank_lower_bound) elements greater than $(eps), skipping update for Ψ"
     else
         copyto!(Ψ, Ψnew)
     end
@@ -244,74 +244,39 @@ function update_F!(VC::LowRankPlusDiagonal{T}) where {T}
     M = VC.storage_dd_1
     N = VC.storage_dd_2
     C = VC.storage_dd_3
-    info = VC.info
     storage_dd = view(VC.storage_nn, 1:d, 1:d)
     # avoid same memory space as d by d storage 
     sqrtΨ = copyto!(view(VC.storage_nn, 1:d, (d + 1)), Ψ)
-    sqrtΨ .= sqrt.(Ψ)
+    for i in eachindex(Ψ)
+        sqrtΨ[i] = sqrt(sqrtΨ[i])
+    end
     # assume current estimate of Σ(n) is stored in `VC.Σ`
     # C(n) = Σ(n) N(n) Σ(n)
     _update_XYX!(C, N, Σ, storage_dd)
     # Intermediate array M̃ = √Ψ M(n) √Ψ
     M_tilde = view(VC.storage_nn, (d + 1):(2d), 1:d)
-    for j in axes(C, 2), i in axes(C, 1)
+    @inbounds for j in axes(C, 2), i in axes(C, 1)
         M_tilde[i, j] = M[i, j] * sqrtΨ[j] * sqrtΨ[i]
     end
     # Intermediate array C̃ = (√Ψ)⁻¹ C(n) (√Ψ)⁻¹
     C_tilde = view(VC.storage_nn, (d + 1):(2d), (d + 1):(2d))
-    for j in axes(C, 2), i in axes(C, 1)
+    @inbounds for j in axes(C, 2), i in axes(C, 1)
         C_tilde[i, j] = C[i, j] / (sqrtΨ[j] * sqrtΨ[i])
     end
-    # intermediate array H = (√Ψ) \ F and W = HᵀH + Iᵣ = FᵀΨ⁻¹F + Iᵣ
-    H = view(VC.storage_nn, (3d + 1):(4d), 1:r)
-    _update_H!(H, F, sqrtΨ)
-    # solution to Riccati equation S M̃ S = C̃
-    # S* = √M̃ √(√M̃ C̃ √M̃) √M̃
-    # solve by eigendecomposition
-    # Matrix square root of M̃
-    # sqrt_M_tilde = view(VC.storage_nn, (4d + 1):(5d), 1:d)
-    # λ_M_tilde    = view(VC.storage_nn, 1:d, d + 2)
-    # sqrt!(sqrt_M_tilde, M_tilde, λ_M_tilde, storage_dd, VC.lworkspace, info)
-    # Q_M_tilde = M_tilde
-    # # inner term of solution to Riccati equation, √(√M̃ C̃ √M̃)
-    # _update_XYX!(C, C_tilde, sqrt_M_tilde, storage_dd)
-    # λ_kernel = view(VC.storage_nn, 1:d, d + 3)
-    # kernel = sqrt!(C_tilde, C, λ_kernel, storage_dd, VC.lworkspace, info)
-    # # solution to Riccati equation
-    # # can overwrite memory of C
-    # inv_sqrt_M_tilde = sqrt!(
-    #     sqrt_M_tilde, Q_M_tilde, λ_M_tilde, storage_dd; invsqrt=true
-    # )
-    # S = _update_XYX!(C, kernel, inv_sqrt_M_tilde, storage_dd)
-    # _syev!('V', 'L', S, λ_kernel, VC.lworkspace, info)
-    # info[] > 0 && throw(PosDefException(info[]))
-    # by convention, `eigen` is normally smallest to largest
-    # permute the eigenvalues and eigenvectors to largest to smallest
-    # could write for loop from d:-1:d-r+1 to avoid the reverse, but this is more explicit
-    # reverse!(λ_kernel; dims=1)
-    # reverse!(S; dims=2)
-    # if all(λ_kernel .< 1)
-    #     @warn "eigenvalues of Riccati solution less than 1, skipping update for F"
-    #     # fill!(H, zero(T))
-    #     return nothing
-    # else
-    #     for j in 1:r
-    #         λj = λ_kernel[j] > 1 ? λ_kernel[j] - 1 : 0
-    #         view(H, :, j) .= sqrt(λj) .* view(S, :, j)
-    #     end
-    # end
-    # Sylvester based update (questionable)----------------------------
-    H_Uinv = view(VC.storage_nn, (3d + 1):(4d), (r + 1):(2r))
+    # Sylvester based update ----------------------------
+    H      = view(VC.storage_nn, (3d + 1):(4d), (r + 1):(2r))
+    H_Uinv = view(VC.storage_nn, (3d + 1):(4d), (2r + 1):(3r))
     U      = view(VC.storage_nn, (4d + 1):(4d + r), 1:r)
+    _update_H!(H, F, sqrtΨ)
     _update_U!(U, H)
     # Factorize U since we need U⁻¹
-    _, info[] = LAPACK.potrf!('L', U)
-    info[] > 0 && throw(PosDefException(info[]))
+    _, info = LAPACK.potrf!('L', U)
+    info > 0 && throw(PosDefException(info))
     BLAS.trsm!('R', 'L', 'T', 'N', one(T), U, copyto!(H_Uinv, H))
     BLAS.trsm!('R', 'L', 'N', 'N', one(T), U, H_Uinv)
-    
+
     # RHS of Sylvester equation, RHS = C̃ (H U⁻¹)
-    RHS = view(VC.storage_nn, (3d + 1):(4d), (2r + 1):(3r))
+    RHS = view(VC.storage_nn, (3d + 1):(4d), (3r + 1):(4r))
     BLAS.symm!('L', 'L', one(T), C_tilde, H_Uinv, zero(T), RHS)
     # Recycle space allocated to U, (H U⁻¹)ᵀ C̃ (H U⁻¹)
     Uinv_Ht_C̃_H_Uinv = U
@@ -319,22 +284,22 @@ function update_F!(VC::LowRankPlusDiagonal{T}) where {T}
     # Solve Sylvester Equation M̃H + H(U⁻¹HᵀC̃HU⁻¹) = C̃HU⁻¹
     H .= sylvester(M_tilde, Uinv_Ht_C̃_H_Uinv, RHS)
     # Solve Sylvester equation by eigendecomposition
-    # λ_L = view(VC.storage_nn, (5d+1):(6d))
-    # λ_R = view(VC.storage_nn, (6d+1):(6d+r))
-    # _syev!('V', 'L', M_tilde, λ_L, VC.lworkspace, info)
-    # Q_L = M_tilde
-    # _syev!('V', 'L', Winv_HtC̃H_Winv, λ_R, VC.rworkspace, info)
-    # Q_R = Winv_HtC̃H_Winv
-    # mul!(H_Winv, transpose(Q_L), RHS)
-    # mul!(RHS, H_Winv, Q_R)
-    # for j in 1:r, i in 1:d
-    #     H[i, j] = RHS[i, j] / (λ_L[i] + λ_R[j])
-    # end
-    # mul!(H_Winv, Q_L, H)
-    # mul!(H, H_Winv, transpose(Q_R))
+    λ_L = view(VC.storage_nn, (3d + 1):(4d), 4r + 1)
+    λ_R = view(VC.storage_nn, (4d + 1):(4d + r), r + 1)
+    _syev!('V', 'L', M_tilde, λ_L, VC.lworkspace, VC.info)
+    Q_L = M_tilde
+    _syev!('V', 'L', Uinv_Ht_C̃_H_Uinv, λ_R, VC.rworkspace, VC.info)
+    Q_R = Uinv_Ht_C̃_H_Uinv
+    mul!(H_Uinv, transpose(Q_L), RHS)
+    mul!(RHS, H_Uinv, Q_R)
+    @inbounds for j in 1:r, i in 1:d
+        H[i, j] = RHS[i, j] / (λ_L[i] + λ_R[j])
+    end
+    mul!(H_Uinv, Q_L, H)
+    mul!(H, H_Uinv, transpose(Q_R))
     # Sylvester end -----------------------------
     # Finally update F in-place, F = (√Ψ) H
-    for j in axes(F, 2), i in axes(F, 1)
+    @inbounds for j in axes(F, 2), i in axes(F, 1)
         F[i, j] = sqrtΨ[i] * H[i, j]
     end
     return nothing
